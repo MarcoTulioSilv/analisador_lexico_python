@@ -59,7 +59,7 @@ docker compose version
 ## Como executar
 
 ```bash
-git clone <URL-DO-REPOSITORIO> visualizador-lexico-python
+git clone https://github.com/MarcoTulioSilv/analisador_lexico_python visualizador-lexico-python
 cd visualizador-lexico-python
 docker compose up --build -d
 ```
@@ -89,4 +89,4 @@ docker compose down --rmi local
 
 ## Autor
 
-Marco Túlio Silva — Disciplina de Compiladores
+Marco Túlio Silva Oliveira — Disciplina de Compiladores
