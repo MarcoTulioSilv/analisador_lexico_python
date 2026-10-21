@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Visualizador Léxico de Python</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+  <header>
+    <h1>Visualizador Léxico de Python</h1>
+    <p id="linguagem">
+      Linguagem analisada: <strong>Python</strong>
+      (subconjunto: literais, nomes e atribuição simples)
+    </p>
+  </header>
+
+  <main>
+    <section class="painel">
+      <label for="exemplos">1. Escolha um exemplo (opcional)</label>
+      <select id="exemplos">
+        <option value="">Selecione um exemplo...</option>
+      </select>
+
+      <label for="codigo">2. Escreva ou edite o código Python</label>
+      <textarea id="codigo" rows="12" spellcheck="false"
+                placeholder="idade = 17&#10;nome = &quot;Ana&quot;"></textarea>
+
+      <button id="analisar" type="button">Analisar</button>
+    </section>
+
+    <section class="painel">
+      <h2>Resultado</h2>
+      <div id="resultado" role="status" aria-live="polite">
+        O resultado da análise aparecerá aqui.
+      </div>
+    </section>
+  </main>
+
+  <script src="exemplos.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

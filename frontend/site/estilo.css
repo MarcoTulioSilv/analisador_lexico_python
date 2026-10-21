@@ -1,0 +1,53 @@
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 760px;
+  margin: 32px auto;
+  padding: 0 16px;
+  color: #222;
+  background: #f6f7f9;
+}
+
+h1 { margin-bottom: 4px; }
+h2 { margin-top: 0; font-size: 1.1em; }
+#linguagem { margin-top: 0; color: #555; }
+
+.painel {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+label { display: block; font-weight: bold; margin: 12px 0 6px; }
+label:first-child { margin-top: 0; }
+
+select, textarea, button { font-size: 1em; }
+select { padding: 6px; }
+
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 15px;
+  line-height: 1.5;
+  padding: 10px;
+  border: 1px solid #bbb;
+  border-radius: 6px;
+}
+
+button {
+  margin-top: 12px;
+  padding: 10px 24px;
+  border: 0;
+  border-radius: 6px;
+  background: #2f6fd6;
+  color: #fff;
+  cursor: pointer;
+}
+button:disabled { background: #999; cursor: wait; }
+
+#resultado { padding: 12px; border-radius: 6px; background: #f0f0f0; }
+#resultado.sucesso { background: #e3f6e5; color: #1d5e26; }
+#resultado.aviso { background: #fff5d6; color: #6b5200; }
+#resultado.erro { background: #fde4e4; color: #8a1c1c; }

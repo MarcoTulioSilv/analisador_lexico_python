@@ -1,10 +1,30 @@
 services:
   backend:
     build: ./backend
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/saude')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   frontend:
     build: ./frontend
     ports:
       - "8080:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+
+  # Testes de interface, integração e ponta a ponta (Playwright).
+  # Não sobe com "docker compose up"; rode com:
+  #   docker compose --profile testes run --rm testes
+  testes:
+    build: ./testes
+    profiles: ["testes"]
+    environment:
+      BASE_URL: http://frontend
+      PASTA_EVIDENCIAS: /evidencias
+    volumes:
+      - ./docs/evidencias:/evidencias
+    depends_on:
+      - frontend
