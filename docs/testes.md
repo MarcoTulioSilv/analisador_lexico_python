@@ -31,6 +31,12 @@ docker compose run --rm backend pytest -v         # regressão do backend (Etapa
 | `test_interface.py` | Título e linguagem; campo, botão, resultado e seletor; fonte monoespaçada; ≥3 exemplos; digitar, editar, substituir; caracteres especiais; código preservado após analisar; cada exemplo carrega seu código; novo exemplo substitui o anterior e o código digitado; exemplo editável; opção vazia não apaga; selecionar exemplo não envia requisição | 17 |
 | `test_ponta_a_ponta.py` | Digitar → analisar → mensagem com contagem; corpo enviado igual ao campo (acentos, emoji, tab); cada exemplo aceito pelo backend; editar exemplo e analisar; vazio/espaços orientam e **não** enviam requisição; validação não bloqueia entrada válida depois; erro 400 do backend exibido (limite de tamanho); falha de rede (mensagem, botão reabilitado, código preservado) e recuperação; erro 500 sem expor detalhes; botão desabilitado durante o envio; geração do print | 17 |
 
+**Validação de instalação limpa:**
+1. Apaguei as imagens do projeto (`docker compose --profile testes down --rmi local`).
+2. Clonei a branch `etapa-2` numa pasta nova.
+3. Rodei `docker compose up --build -d`: o backend ficou `healthy` e o frontend subiu `Up`.
+4. Os dois comandos de teste passaram: 48 e 38 aprovados, 0 reprovados.
+
 **Evidência:** `docs/evidencias/interface.png`, gerado pelo teste `test_gera_print_da_interface`.
 
 **Falhas encontradas:** nenhuma nos testes. Um problema de ambiente: o download da imagem do Playwright
