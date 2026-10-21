@@ -14,3 +14,17 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+
+  # Testes de interface, integração e ponta a ponta (Playwright).
+  # Não sobe com "docker compose up"; rode com:
+  #   docker compose --profile testes run --rm testes
+  testes:
+    build: ./testes
+    profiles: ["testes"]
+    environment:
+      BASE_URL: http://frontend
+      PASTA_EVIDENCIAS: /evidencias
+    volumes:
+      - ./docs/evidencias:/evidencias
+    depends_on:
+      - frontend
