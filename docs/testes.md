@@ -4,6 +4,42 @@ Cada execução relevante fica registrada aqui, da mais recente para a mais anti
 
 ---
 
+## 2026-10-29: Etapa 3A, scanner (análise léxica) no backend
+
+**Tipos:** unitário (`tests/test_scanner.py`), diferencial contra o Python real
+(`tests/test_scanner_vs_python.py`), endpoints (`tests/test_api.py`) e regressão (`tests/test_validacao.py`).
+
+**Comando:**
+
+```bash
+docker compose run --rm backend pytest -v
+```
+
+**Resultado:** 232 aprovados, 0 reprovados.
+
+| Arquivo | O que cobre |
+| --- | --- |
+| `test_scanner.py` | Formato do token; cada palavra reservada do Python; nomes parecidos com reservadas; identificadores (com `_` e acentos); inteiros, reais (`.5`, `3.`), strings (aspas simples e duplas, escapes, emoji), booleanos; `17` × `"17"`; descrição cita o tipo Python; cada operador e delimitador; maior casamento (`a===b`, `2***3`); comentários e espaços ignorados; posição (várias linhas, acentos, emoji, tab); regras da `NOVA_LINHA` (fim sem `\n`, linhas em branco, comentário, dentro de parênteses, `\r\n`); cada erro léxico com localização (caractere inválido, string não fechada, número malformado, três aspas); acúmulo de erros e continuação; casos de borda (vazio, só espaços, só comentários, token no fim, 1.000 linhas) |
+| `test_scanner_vs_python.py` | Para 16 programas válidos, os lexemas, linhas e colunas do nosso scanner são **idênticos** aos do `tokenize` da biblioteca padrão do Python |
+| `test_api.py` | 200 com tokens e `sucesso: true` (formato exato); 200 com `sucesso: false` e erros com localização; vários erros acumulados; só comentário; os 400 da Etapa 2 (regressão); 500 genérico |
+| `test_validacao.py` | Regressão da Etapa 2, sem alteração |
+
+**Verificação dos próprios testes (mutação):** injetei dois defeitos no scanner, dentro de um container
+descartável, para conferir se o teste diferencial os detecta:
+- **Removi o operador `<=`:** o teste diferencial falhou, como esperado.
+- **Tab passou a contar como 2 colunas:** o teste diferencial **não** falhou, porque nenhum programa
+  dele tinha tab. Só o teste unitário pegava o defeito. **Correção:** acrescentei o programa
+  `x\t=\t1\ty = x` ao diferencial. Com a mesma mutação, ele agora falha.
+
+**Mudança intencional:** a resposta 200 da Etapa 2 (`recebido`, `mensagem`, `linhas`, `caracteres`)
+foi substituída por `sucesso`, `tokens` e `erros`. Os testes dessa resposta foram reescritos para o
+novo contrato. As respostas 400 e 500 não mudaram.
+
+**Pendências:** a tela ainda espera o formato antigo e mostra "erro inesperado" depois de analisar.
+Isso será corrigido na Etapa 3B, junto com a exibição didática dos tokens e os testes de navegador.
+
+---
+
 ## 2026-10-21: Etapa 2B, tela principal, exemplos e testes de navegador
 
 **Tipos:** implantação, interface, integração e ponta a ponta (Playwright/Chromium), além da
