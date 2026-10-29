@@ -4,6 +4,76 @@ Cada execução relevante fica registrada aqui, da mais recente para a mais anti
 
 ---
 
+## 2026-10-29: Etapa 3B, tela didática da análise léxica
+
+**Tipos:** interface, integração e ponta a ponta (Playwright/Chromium), implantação e regressão
+(backend inteiro e testes de navegador da Etapa 2).
+
+**Comandos:**
+
+```bash
+docker compose up --build -d
+docker compose --profile testes run --rm testes   # navegador
+docker compose run --rm backend pytest -v         # backend (regressão da Etapa 3A)
+```
+
+**Resultado:**
+
+| Conjunto | Aprovados | Reprovados |
+| --- | --- | --- |
+| Navegador (`testes/`) | 74 | 0 |
+| Backend (`backend/tests/`) | 232 | 0 |
+| **Total** | **306** | **0** |
+
+Testes novos em `testes/test_analise_lexica.py` (33):
+- **Tabela:** tipo, lexema, linha, coluna, descrição e cabeçalho.
+- **Código colorido:** um elemento por token, com a classe da categoria. Sem as marcas ↵, o texto é
+  idêntico ao código digitado, e o alinhamento continua certo com acentos e emoji.
+- **Contagem por categoria.**
+- **Erros:** os 3 erros do exemplo 7 com linha e coluna, o erro sublinhado no código, a string não
+  fechada e a seção de erros que some quando não há erro.
+- **Entradas inválidas:** 7 entradas "lixo" não geram erro de JavaScript e a tela continua
+  funcionando depois.
+- **HTML no código:** aparece como texto e não vira HTML.
+- **Só comentário:** zero tokens.
+- **Passo a passo:** avança, volta, destaca o token no código e na tabela, para no último token;
+  Reproduzir percorre tudo, Pausar interrompe e uma nova análise reinicia.
+- **Explicação:** a seção "O que é token e lexema?".
+- **Celular:** sem rolagem horizontal em 375 px.
+- **Prints:** `interface.png`, `erros-lexicos.png` e `celular.png`.
+
+Testes da Etapa 2 atualizados por **mudança intencional de contrato** (a resposta agora é a análise
+léxica):
+- `test_digitar_e_analisar` e `test_editar_exemplo_e_analisar`: a mensagem passou a contar tokens.
+- `test_cada_exemplo_e_aceito_pelo_backend` virou dois testes: os 5 exemplos sem erro dão sucesso e
+  os 2 com erro intencional mostram os erros.
+- Novo teste `test_falha_de_comunicacao_esconde_analise_anterior`: uma falha não pode deixar a
+  tabela da análise anterior na tela.
+
+**Falhas encontradas e correções:**
+1. **Regressão detectada:** `test_implantacao.py::test_endpoint_de_analise_responde_atraves_do_nginx`
+   falhou com `KeyError: 'recebido'`. O teste da Etapa 2 ainda conferia o contrato antigo. O código
+   estava certo (a mudança de contrato era intencional), então o teste foi atualizado para o contrato
+   novo, que confere `sucesso` e os lexemas.
+2. **Layout no celular:** o print `celular.png` mostrou a tabela espremida, com linhas muito altas, e
+   os botões do passo a passo quebrando em duas linhas. O teste automático passava, porque não havia
+   rolagem horizontal na página. **Correção:** a tabela ganhou largura mínima e rola dentro do próprio
+   quadro, e os botões ficaram menores e sem quebra. Rodei de novo os testes de celular: 2 aprovados.
+
+**Validação de instalação limpa:**
+1. Apaguei as imagens do projeto (`docker compose --profile testes down --rmi local`).
+2. Clonei a branch `etapa-3` numa pasta nova.
+3. Rodei `docker compose up --build -d`: o backend ficou `healthy`.
+4. Os dois comandos de teste passaram (resultado abaixo).
+
+**Limitações / pendências:**
+- os testes de navegador usam só o Chromium;
+- não há testes automáticos de acessibilidade (contraste, leitor de tela);
+- a lista de exemplos aparece em dois lugares (`frontend/site/exemplos.js` e `testes/test_interface.py`).
+  Se um exemplo mudar, o teste falha e avisa.
+
+---
+
 ## 2026-10-29: Etapa 3A, scanner (análise léxica) no backend
 
 **Tipos:** unitário (`tests/test_scanner.py`), diferencial contra o Python real
