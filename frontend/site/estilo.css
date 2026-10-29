@@ -1,6 +1,19 @@
+:root {
+  /* Uma cor por categoria de token (usada no código colorido, na contagem e na tabela) */
+  --c-PALAVRA_RESERVADA: #8e44ad;
+  --c-IDENTIFICADOR: #1f5fbf;
+  --c-LITERAL_INTEIRO: #b35900;
+  --c-LITERAL_REAL: #a0522d;
+  --c-LITERAL_STRING: #1e7b34;
+  --c-LITERAL_BOOLEANO: #c0392b;
+  --c-OPERADOR: #444;
+  --c-DELIMITADOR: #777;
+  --c-NOVA_LINHA: #999;
+}
+
 body {
   font-family: system-ui, sans-serif;
-  max-width: 760px;
+  max-width: 860px;
   margin: 32px auto;
   padding: 0 16px;
   color: #222;
@@ -9,6 +22,7 @@ body {
 
 h1 { margin-bottom: 4px; }
 h2 { margin-top: 0; font-size: 1.1em; }
+h3 { font-size: 1em; margin: 18px 0 8px; }
 #linguagem { margin-top: 0; color: #555; }
 
 .painel {
@@ -23,12 +37,13 @@ label { display: block; font-weight: bold; margin: 12px 0 6px; }
 label:first-child { margin-top: 0; }
 
 select, textarea, button { font-size: 1em; }
-select { padding: 6px; }
+select { padding: 6px; max-width: 100%; }
+
+textarea, pre, code { font-family: Consolas, "Courier New", monospace; }
 
 textarea {
   width: 100%;
   box-sizing: border-box;
-  font-family: Consolas, "Courier New", monospace;
   font-size: 15px;
   line-height: 1.5;
   padding: 10px;
@@ -46,8 +61,95 @@ button {
   cursor: pointer;
 }
 button:disabled { background: #999; cursor: wait; }
+button.secundario { margin-top: 0; padding: 8px 14px; background: #e8eef9; color: #1f4f9f; }
+button.secundario:disabled { background: #eee; color: #aaa; cursor: default; }
 
 #resultado { padding: 12px; border-radius: 6px; background: #f0f0f0; }
 #resultado.sucesso { background: #e3f6e5; color: #1d5e26; }
 #resultado.aviso { background: #fff5d6; color: #6b5200; }
 #resultado.erro { background: #fde4e4; color: #8a1c1c; }
+
+/* ---------- Erros léxicos ---------- */
+#lista-erros { margin: 0; padding-left: 20px; color: #8a1c1c; }
+#lista-erros li { margin-bottom: 4px; }
+
+/* ---------- Código colorido ---------- */
+#codigo-colorido {
+  background: #fafafa;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 15px;
+  line-height: 1.7;
+  overflow-x: auto;
+  margin: 0;
+}
+.tk { border-radius: 3px; padding: 1px 0; transition: background 0.2s, outline 0.2s; }
+.tk-erro { color: #c00; text-decoration: underline wavy #c00; }
+.tk.tk-NOVA_LINHA { font-size: 0.8em; }
+.tk.atual { background: #ffe066; outline: 2px solid #e0a800; }
+
+/* ---------- Contagem por categoria (também é a legenda das cores) ---------- */
+#contagem { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip {
+  display: inline-block;
+  font-size: 0.8em;
+  font-weight: bold;
+  color: #fff;
+  padding: 3px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+/* ---------- Passo a passo ---------- */
+.controles { display: flex; flex-wrap: wrap; gap: 8px; }
+#passo-explicacao {
+  min-height: 1.5em;
+  background: #f4f7fd;
+  border-left: 4px solid #2f6fd6;
+  padding: 8px 12px;
+}
+
+/* ---------- Tabela ---------- */
+.rolagem { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.9em; }
+th, td { border-bottom: 1px solid #e5e5e5; padding: 6px 8px; text-align: left; vertical-align: top; }
+th { background: #f3f3f3; }
+td code { white-space: pre; }
+tr.atual { background: #fff3bf; }
+
+/* Cada categoria usa a sua cor */
+.tk-PALAVRA_RESERVADA { color: var(--c-PALAVRA_RESERVADA); font-weight: bold; }
+.tk-IDENTIFICADOR { color: var(--c-IDENTIFICADOR); }
+.tk-LITERAL_INTEIRO { color: var(--c-LITERAL_INTEIRO); }
+.tk-LITERAL_REAL { color: var(--c-LITERAL_REAL); }
+.tk-LITERAL_STRING { color: var(--c-LITERAL_STRING); }
+.tk-LITERAL_BOOLEANO { color: var(--c-LITERAL_BOOLEANO); font-weight: bold; }
+.tk-OPERADOR { color: var(--c-OPERADOR); font-weight: bold; }
+.tk-DELIMITADOR { color: var(--c-DELIMITADOR); }
+.tk-NOVA_LINHA { color: var(--c-NOVA_LINHA); }
+
+.chip.tk-PALAVRA_RESERVADA { background: var(--c-PALAVRA_RESERVADA); color: #fff; }
+.chip.tk-IDENTIFICADOR { background: var(--c-IDENTIFICADOR); color: #fff; }
+.chip.tk-LITERAL_INTEIRO { background: var(--c-LITERAL_INTEIRO); color: #fff; }
+.chip.tk-LITERAL_REAL { background: var(--c-LITERAL_REAL); color: #fff; }
+.chip.tk-LITERAL_STRING { background: var(--c-LITERAL_STRING); color: #fff; }
+.chip.tk-LITERAL_BOOLEANO { background: var(--c-LITERAL_BOOLEANO); color: #fff; }
+.chip.tk-OPERADOR { background: var(--c-OPERADOR); color: #fff; }
+.chip.tk-DELIMITADOR { background: var(--c-DELIMITADOR); color: #fff; }
+.chip.tk-NOVA_LINHA { background: var(--c-NOVA_LINHA); color: #fff; }
+
+details summary { cursor: pointer; font-weight: bold; }
+
+/* ---------- Celular ---------- */
+@media (max-width: 600px) {
+  body { margin: 12px auto; }
+  h1 { font-size: 1.4em; }
+  .painel { padding: 12px; }
+  select { width: 100%; }
+  button#analisar { width: 100%; }
+  .controles { gap: 6px; }
+  .controles button { flex: 1; padding: 8px 4px; font-size: 0.9em; white-space: nowrap; }
+  /* A tabela mantém uma largura legível e rola dentro do próprio quadro. */
+  #tabela-tokens { min-width: 640px; }
+}
