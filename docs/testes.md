@@ -4,6 +4,115 @@ Cada execução relevante fica registrada aqui, da mais recente para a mais anti
 
 ---
 
+## 2026-10-29: Etapa 3B, tela didática da análise léxica
+
+**Tipos:** interface, integração e ponta a ponta (Playwright/Chromium), implantação e regressão
+(backend inteiro e testes de navegador da Etapa 2).
+
+**Comandos:**
+
+```bash
+docker compose up --build -d
+docker compose --profile testes run --rm testes   # navegador
+docker compose run --rm backend pytest -v         # backend (regressão da Etapa 3A)
+```
+
+**Resultado:**
+
+| Conjunto | Aprovados | Reprovados |
+| --- | --- | --- |
+| Navegador (`testes/`) | 74 | 0 |
+| Backend (`backend/tests/`) | 232 | 0 |
+| **Total** | **306** | **0** |
+
+Testes novos em `testes/test_analise_lexica.py` (33):
+- **Tabela:** tipo, lexema, linha, coluna, descrição e cabeçalho.
+- **Código colorido:** um elemento por token, com a classe da categoria. Sem as marcas ↵, o texto é
+  idêntico ao código digitado, e o alinhamento continua certo com acentos e emoji.
+- **Contagem por categoria.**
+- **Erros:** os 3 erros do exemplo 7 com linha e coluna, o erro sublinhado no código, a string não
+  fechada e a seção de erros que some quando não há erro.
+- **Entradas inválidas:** 7 entradas "lixo" não geram erro de JavaScript e a tela continua
+  funcionando depois.
+- **HTML no código:** aparece como texto e não vira HTML.
+- **Só comentário:** zero tokens.
+- **Passo a passo:** avança, volta, destaca o token no código e na tabela, para no último token;
+  Reproduzir percorre tudo, Pausar interrompe e uma nova análise reinicia.
+- **Explicação:** a seção "O que é token e lexema?".
+- **Celular:** sem rolagem horizontal em 375 px.
+- **Prints:** `interface.png`, `erros-lexicos.png` e `celular.png`.
+
+Testes da Etapa 2 atualizados por **mudança intencional de contrato** (a resposta agora é a análise
+léxica):
+- `test_digitar_e_analisar` e `test_editar_exemplo_e_analisar`: a mensagem passou a contar tokens.
+- `test_cada_exemplo_e_aceito_pelo_backend` virou dois testes: os 5 exemplos sem erro dão sucesso e
+  os 2 com erro intencional mostram os erros.
+- Novo teste `test_falha_de_comunicacao_esconde_analise_anterior`: uma falha não pode deixar a
+  tabela da análise anterior na tela.
+
+**Falhas encontradas e correções:**
+1. **Regressão detectada:** `test_implantacao.py::test_endpoint_de_analise_responde_atraves_do_nginx`
+   falhou com `KeyError: 'recebido'`. O teste da Etapa 2 ainda conferia o contrato antigo. O código
+   estava certo (a mudança de contrato era intencional), então o teste foi atualizado para o contrato
+   novo, que confere `sucesso` e os lexemas.
+2. **Layout no celular:** o print `celular.png` mostrou a tabela espremida, com linhas muito altas, e
+   os botões do passo a passo quebrando em duas linhas. O teste automático passava, porque não havia
+   rolagem horizontal na página. **Correção:** a tabela ganhou largura mínima e rola dentro do próprio
+   quadro, e os botões ficaram menores e sem quebra. Rodei de novo os testes de celular: 2 aprovados.
+
+**Validação de instalação limpa:**
+1. Apaguei as imagens do projeto (`docker compose --profile testes down --rmi local`).
+2. Clonei a branch `etapa-3` numa pasta nova.
+3. Rodei `docker compose up --build -d`: o backend ficou `healthy`.
+4. Os dois comandos de teste passaram: 232 e 74 aprovados, 0 reprovados.
+
+O print `interface.png` gerado no clone saiu com alguns pixels diferentes do versionado, porque o
+destaque do passo a passo tem uma transição de 0,2 s. É uma diferença visual só, sem impacto nos testes.
+
+**Limitações / pendências:**
+- os testes de navegador usam só o Chromium;
+- não há testes automáticos de acessibilidade (contraste, leitor de tela);
+- a lista de exemplos aparece em dois lugares (`frontend/site/exemplos.js` e `testes/test_interface.py`).
+  Se um exemplo mudar, o teste falha e avisa.
+
+---
+
+## 2026-10-29: Etapa 3A, scanner (análise léxica) no backend
+
+**Tipos:** unitário (`tests/test_scanner.py`), diferencial contra o Python real
+(`tests/test_scanner_vs_python.py`), endpoints (`tests/test_api.py`) e regressão (`tests/test_validacao.py`).
+
+**Comando:**
+
+```bash
+docker compose run --rm backend pytest -v
+```
+
+**Resultado:** 232 aprovados, 0 reprovados.
+
+| Arquivo | O que cobre |
+| --- | --- |
+| `test_scanner.py` | Formato do token; cada palavra reservada do Python; nomes parecidos com reservadas; identificadores (com `_` e acentos); inteiros, reais (`.5`, `3.`), strings (aspas simples e duplas, escapes, emoji), booleanos; `17` × `"17"`; descrição cita o tipo Python; cada operador e delimitador; maior casamento (`a===b`, `2***3`); comentários e espaços ignorados; posição (várias linhas, acentos, emoji, tab); regras da `NOVA_LINHA` (fim sem `\n`, linhas em branco, comentário, dentro de parênteses, `\r\n`); cada erro léxico com localização (caractere inválido, string não fechada, número malformado, três aspas); acúmulo de erros e continuação; casos de borda (vazio, só espaços, só comentários, token no fim, 1.000 linhas) |
+| `test_scanner_vs_python.py` | Para 16 programas válidos, os lexemas, linhas e colunas do nosso scanner são **idênticos** aos do `tokenize` da biblioteca padrão do Python |
+| `test_api.py` | 200 com tokens e `sucesso: true` (formato exato); 200 com `sucesso: false` e erros com localização; vários erros acumulados; só comentário; os 400 da Etapa 2 (regressão); 500 genérico |
+| `test_validacao.py` | Regressão da Etapa 2, sem alteração |
+
+**Verificação dos próprios testes (mutação):** injetei dois defeitos no scanner, dentro de um container
+descartável, para conferir se o teste diferencial os detecta:
+- **Removi o operador `<=`:** o teste diferencial falhou, como esperado.
+- **Tab passou a contar como 2 colunas:** o teste diferencial **não** falhou, porque nenhum programa
+  dele tinha tab. Só o teste unitário pegava o defeito. **Correção:** acrescentei o programa
+  `x\t=\t1\ty = x` ao diferencial. Com a mesma mutação, ele agora falha.
+
+**Mudança intencional:** a resposta 200 da Etapa 2 (`recebido`, `mensagem`, `linhas`, `caracteres`)
+foi substituída por `sucesso`, `tokens` e `erros`. Os testes dessa resposta foram reescritos para o
+novo contrato. As respostas 400 e 500 não mudaram.
+
+**Pendências:** a tela ainda espera o formato antigo e mostra "erro inesperado" depois de analisar.
+Isso será corrigido na Etapa 3B, junto com a exibição didática dos tokens e os testes de navegador.
+
+---
+
 ## 2026-10-21: Etapa 2B, tela principal, exemplos e testes de navegador
 
 **Tipos:** implantação, interface, integração e ponta a ponta (Playwright/Chromium), além da

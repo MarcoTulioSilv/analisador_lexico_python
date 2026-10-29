@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
 
+from scanner import analisar_lexico
 from validacao import validar_codigo
 
 app = Flask(__name__)
@@ -18,13 +19,10 @@ def analisar():
     if erro:
         return jsonify(recebido=False, erro=erro), 400
 
-    # A análise léxica entra aqui nas próximas etapas.
-    return jsonify(
-        recebido=True,
-        mensagem="Código recebido com sucesso.",
-        linhas=len(codigo.splitlines()),
-        caracteres=len(codigo),
-    )
+    # Etapa 3: análise léxica. Erros léxicos não são erro da requisição (continua 200);
+    # quem diz se o código passou é o campo "sucesso".
+    tokens, erros = analisar_lexico(codigo)
+    return jsonify(sucesso=not erros, tokens=tokens, erros=erros)
 
 
 @app.errorhandler(Exception)

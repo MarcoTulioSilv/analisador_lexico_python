@@ -8,6 +8,9 @@ EXEMPLOS = [
     ("1", 'idade = 17\nidade_texto = "17"\nnome = "Ana"'),
     ("2", "aprovado = True\npendente = False\nsituacao = aprovado"),
     ("3", 'nome = "Ana'),
+    ("4", "idade = 17\nproxima = idade + 1\nmaior = idade >= 18 and not False"),
+    ("5", '# média\nnota1 = 7.5\nmedia = (nota1 + 9) / 2  # divisão\nprint("Média:", media)'),
+    ("6", "preco = 10.5.2\nemail = ana@escola\ntotal = 12abc"),
 ]
 
 

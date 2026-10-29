@@ -11,7 +11,7 @@
     <h1>Visualizador Léxico de Python</h1>
     <p id="linguagem">
       Linguagem analisada: <strong>Python</strong>
-      (subconjunto: literais, nomes e atribuição simples)
+      (subconjunto: literais, nomes, atribuição, expressões e chamadas como <code>print</code>)
     </p>
   </header>
 
@@ -23,7 +23,7 @@
       </select>
 
       <label for="codigo">2. Escreva ou edite o código Python</label>
-      <textarea id="codigo" rows="12" spellcheck="false"
+      <textarea id="codigo" rows="10" spellcheck="false"
                 placeholder="idade = 17&#10;nome = &quot;Ana&quot;"></textarea>
 
       <button id="analisar" type="button">Analisar</button>
@@ -34,6 +34,57 @@
       <div id="resultado" role="status" aria-live="polite">
         O resultado da análise aparecerá aqui.
       </div>
+
+      <div id="analise" hidden>
+        <div id="secao-erros" hidden>
+          <h3>Erros léxicos</h3>
+          <ul id="lista-erros"></ul>
+        </div>
+
+        <h3>Código com os tokens destacados</h3>
+        <pre id="codigo-colorido"></pre>
+        <div id="contagem" aria-label="Tokens por categoria"></div>
+
+        <h3>Passo a passo do scanner</h3>
+        <div class="controles">
+          <button id="passo-anterior" type="button" class="secundario">◀ Anterior</button>
+          <button id="passo-reproduzir" type="button" class="secundario">▶ Reproduzir</button>
+          <button id="passo-proximo" type="button" class="secundario">Próximo ▶</button>
+        </div>
+        <p id="passo-explicacao"></p>
+
+        <h3>Tabela de tokens</h3>
+        <div class="rolagem">
+          <table id="tabela-tokens">
+            <thead>
+              <tr><th>#</th><th>Tipo</th><th>Lexema</th><th>Linha</th><th>Coluna</th><th>Descrição</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="painel">
+      <details id="o-que-e">
+        <summary>O que é token e lexema?</summary>
+        <p>
+          O <strong>scanner</strong> (analisador léxico) é a primeira fase de um compilador. Ele lê o
+          código da esquerda para a direita, caractere por caractere, e agrupa os caracteres em
+          pedaços com significado. Espaços e comentários são descartados.
+        </p>
+        <ul>
+          <li><strong>Lexema</strong> é o texto exato que o scanner leu, por exemplo <code>17</code>.</li>
+          <li><strong>Token</strong> é o lexema junto com a sua categoria (tipo), por exemplo
+            <code>LITERAL_INTEIRO</code>, e a posição onde ele está (linha e coluna).</li>
+          <li><strong>Erro léxico</strong> é um trecho que não forma nenhum token conhecido, como
+            <code>@</code> ou uma string sem a aspa de fechamento.</li>
+        </ul>
+        <p>
+          Repare: <code>17</code> e <code>"17"</code> são lexemas diferentes e viram tokens de tipos
+          diferentes. O tipo do valor começa a ser decidido aqui, só pela forma como ele foi escrito.
+        </p>
+      </details>
     </section>
   </main>
 

@@ -13,43 +13,87 @@ def test_saude_responde_ok(cliente):
     assert resp.get_json() == {"status": "ok"}
 
 
-# ---------- /api/analisar: casos aceitos ----------
+# ---------- /api/analisar: análise léxica (Etapa 3) ----------
+# Mudança intencional: a resposta 200 da Etapa 2 (recebido, mensagem, linhas,
+# caracteres) foi substituída pelo resultado do scanner (sucesso, tokens, erros).
 
-def test_analisar_codigo_valido(cliente):
+def test_analisar_codigo_valido_retorna_tokens(cliente):
     resp = cliente.post("/api/analisar", json={"codigo": "idade = 17"})
     assert resp.status_code == 200
     assert resp.is_json
     assert resp.get_json() == {
-        "recebido": True,
-        "mensagem": "Código recebido com sucesso.",
-        "linhas": 1,
-        "caracteres": 10,
+        "sucesso": True,
+        "erros": [],
+        "tokens": [
+            {"tipo": "IDENTIFICADOR", "lexema": "idade", "linha": 1, "coluna": 1,
+             "descricao": "nome (identificador): uma etiqueta que aponta para um objeto"},
+            {"tipo": "OPERADOR", "lexema": "=", "linha": 1, "coluna": 7,
+             "descricao": "operador de atribuição: cola o nome ao valor"},
+            {"tipo": "LITERAL_INTEIRO", "lexema": "17", "linha": 1, "coluna": 9,
+             "descricao": "número inteiro: vira um objeto do tipo int"},
+            {"tipo": "NOVA_LINHA", "lexema": "", "linha": 1, "coluna": 11,
+             "descricao": "fim da linha: em Python, a quebra de linha encerra o comando"},
+        ],
     }
 
 
-def test_analisar_conta_linhas_e_caracteres(cliente):
-    codigo = 'idade = 17\nidade_texto = "17"\nnome = "Ana"'
+def test_analisar_campos_de_cada_token(cliente):
+    dados = cliente.post("/api/analisar", json={"codigo": 'x = "a" + 1.5'}).get_json()
+    for token in dados["tokens"]:
+        assert set(token) == {"tipo", "lexema", "linha", "coluna", "descricao"}
+        assert isinstance(token["linha"], int) and isinstance(token["coluna"], int)
+
+
+def test_analisar_com_erro_lexico_retorna_200_e_sucesso_falso(cliente):
+    resp = cliente.post("/api/analisar", json={"codigo": "a = 1\nb = 2 @ 3"})
+    assert resp.status_code == 200
+    dados = resp.get_json()
+    assert dados["sucesso"] is False
+    assert dados["erros"] == [{
+        "tipo": "ERRO_LEXICO",
+        "lexema": "@",
+        "linha": 2,
+        "coluna": 7,
+        "mensagem": "Erro léxico na linha 2, coluna 7: caractere não reconhecido '@'. "
+                    "Verifique se ele faz parte do subconjunto suportado.",
+    }]
+    # Os tokens válidos continuam vindo junto.
+    assert [t["lexema"] for t in dados["tokens"] if t["tipo"] != "NOVA_LINHA"] == ["a", "=", "1", "b", "=", "2", "3"]
+
+
+def test_analisar_acumula_varios_erros(cliente):
+    codigo = "preco = 10.5.2\nemail = ana@escola\ntotal = 12abc"
     dados = cliente.post("/api/analisar", json={"codigo": codigo}).get_json()
-    assert dados["linhas"] == 3
-    assert dados["caracteres"] == len(codigo)
+    assert dados["sucesso"] is False
+    assert [(e["lexema"], e["linha"], e["coluna"]) for e in dados["erros"]] == [
+        ("10.5.2", 1, 9), ("@", 2, 12), ("12abc", 3, 9),
+    ]
+
+
+def test_analisar_string_nao_fechada(cliente):
+    dados = cliente.post("/api/analisar", json={"codigo": 'nome = "Ana'}).get_json()
+    assert dados["sucesso"] is False
+    assert "string não fechada" in dados["erros"][0]["mensagem"]
 
 
 def test_analisar_aceita_caracteres_especiais(cliente):
     codigo = 'texto = "ação 😀"\t# comentário {}'
     resp = cliente.post("/api/analisar", json={"codigo": codigo})
     assert resp.status_code == 200
-    assert resp.get_json()["caracteres"] == len(codigo)
+    dados = resp.get_json()
+    assert dados["sucesso"] is True
+    assert dados["tokens"][2]["lexema"] == '"ação 😀"'
 
 
-def test_analisar_aceita_codigo_com_erro_intencional(cliente):
-    resp = cliente.post("/api/analisar", json={"codigo": 'nome = "Ana'})
-    assert resp.status_code == 200
-    assert resp.get_json()["recebido"] is True
+def test_analisar_so_comentario_tem_sucesso_sem_tokens(cliente):
+    dados = cliente.post("/api/analisar", json={"codigo": "# só comentário"}).get_json()
+    assert dados == {"sucesso": True, "tokens": [], "erros": []}
 
 
 def test_analisar_ignora_campos_extras(cliente):
     resp = cliente.post("/api/analisar", json={"codigo": "x = 1", "extra": 123})
     assert resp.status_code == 200
+    assert resp.get_json()["sucesso"] is True
 
 
 # ---------- /api/analisar: entradas inválidas ----------
