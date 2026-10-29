@@ -64,7 +64,10 @@ léxica):
 1. Apaguei as imagens do projeto (`docker compose --profile testes down --rmi local`).
 2. Clonei a branch `etapa-3` numa pasta nova.
 3. Rodei `docker compose up --build -d`: o backend ficou `healthy`.
-4. Os dois comandos de teste passaram (resultado abaixo).
+4. Os dois comandos de teste passaram: 232 e 74 aprovados, 0 reprovados.
+
+O print `interface.png` gerado no clone saiu com alguns pixels diferentes do versionado, porque o
+destaque do passo a passo tem uma transição de 0,2 s. É uma diferença visual só, sem impacto nos testes.
 
 **Limitações / pendências:**
 - os testes de navegador usam só o Chromium;
