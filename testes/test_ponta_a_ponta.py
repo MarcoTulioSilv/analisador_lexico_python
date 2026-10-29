@@ -3,12 +3,9 @@
 Também cobre as validações e mensagens de erro exibidas ao usuário.
 """
 import json
-import os
 
 import pytest
 from playwright.sync_api import expect
-
-from conftest import PASTA_EVIDENCIAS
 
 MSG_VAZIO = "Informe um código-fonte antes de solicitar a análise."
 MSG_SEM_CONEXAO = "Não foi possível comunicar com o servidor. Verifique a conexão e tente novamente."
@@ -22,7 +19,8 @@ def test_digitar_e_analisar(tela):
     tela.locator("#analisar").click()
     resultado = tela.locator("#resultado")
     expect(resultado).to_have_class("sucesso")
-    expect(resultado).to_have_text("Código recebido com sucesso. (1 linha(s), 10 caractere(s))")
+    # Etapa 3: a resposta passou a ser a análise léxica (idade, =, 17 e o fim de linha).
+    expect(resultado).to_have_text("Análise léxica concluída: 4 token(s) reconhecido(s).")
 
 
 def test_envia_exatamente_o_codigo_do_campo(tela):
@@ -34,21 +32,29 @@ def test_envia_exatamente_o_codigo_do_campo(tela):
     expect(tela.locator("#resultado")).to_have_class("sucesso")
 
 
-@pytest.mark.parametrize("valor", ["0", "1", "2", "3"])
-def test_cada_exemplo_e_aceito_pelo_backend(tela, valor):
+@pytest.mark.parametrize("valor", ["0", "1", "2", "4", "5"])
+def test_exemplos_sem_erro_sao_tokenizados_com_sucesso(tela, valor):
     tela.locator("#exemplos").select_option(valor)
     tela.locator("#analisar").click()
     expect(tela.locator("#resultado")).to_have_class("sucesso")
-    expect(tela.locator("#resultado")).to_contain_text("Código recebido com sucesso.")
+    expect(tela.locator("#resultado")).to_contain_text("Análise léxica concluída")
+
+
+@pytest.mark.parametrize("valor, quantidade", [("3", 1), ("6", 3)])
+def test_exemplos_com_erro_intencional_mostram_os_erros(tela, valor, quantidade):
+    tela.locator("#exemplos").select_option(valor)
+    tela.locator("#analisar").click()
+    expect(tela.locator("#resultado")).to_have_class("aviso")
+    expect(tela.locator("#resultado")).to_contain_text(f"encontrou {quantidade} erro(s)")
 
 
 def test_editar_exemplo_e_analisar(tela):
-    tela.locator("#exemplos").select_option("0")  # 2 linhas
+    tela.locator("#exemplos").select_option("0")  # 8 tokens
     campo = tela.locator("#codigo")
     campo.press("Control+End")
-    campo.type("\nnome = \"Ana\"")
+    campo.type("\nnome = \"Ana\"")  # + nome, =, "Ana" e mais um fim de linha
     tela.locator("#analisar").click()
-    expect(tela.locator("#resultado")).to_contain_text("3 linha(s)")
+    expect(tela.locator("#resultado")).to_contain_text("12 token(s)")
 
 
 # ---------- Validação no navegador ----------
@@ -131,13 +137,15 @@ def test_botao_desabilitado_durante_envio(tela):
     expect(tela.locator("#resultado")).to_have_class("sucesso")
 
 
-# ---------- Evidência ----------
-
-def test_gera_print_da_interface(tela):
-    tela.set_viewport_size({"width": 1000, "height": 760})
-    tela.locator("#exemplos").select_option("1")
+def test_falha_de_comunicacao_esconde_analise_anterior(tela):
+    # Depois de uma análise bem-sucedida, uma falha não pode deixar a tabela antiga
+    # na tela como se fosse o resultado do código atual.
+    tela.locator("#codigo").fill("idade = 17")
     tela.locator("#analisar").click()
-    expect(tela.locator("#resultado")).to_have_class("sucesso")
+    expect(tela.locator("#analise")).to_be_visible()
 
-    os.makedirs(PASTA_EVIDENCIAS, exist_ok=True)
-    tela.screenshot(path=os.path.join(PASTA_EVIDENCIAS, "interface.png"), full_page=True)
+    tela.route("**/api/analisar", lambda rota: rota.abort())
+    tela.locator("#codigo").fill("outro = 1")
+    tela.locator("#analisar").click()
+    expect(tela.locator("#resultado")).to_have_text(MSG_SEM_CONEXAO)
+    expect(tela.locator("#analise")).to_be_hidden()

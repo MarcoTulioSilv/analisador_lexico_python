@@ -23,4 +23,7 @@ def test_backend_responde_atraves_do_nginx(page):
 def test_endpoint_de_analise_responde_atraves_do_nginx(page):
     resposta = page.request.post(f"{BASE_URL}/api/analisar", data={"codigo": "idade = 17"})
     assert resposta.status == 200
-    assert resposta.json()["recebido"] is True
+    # Contrato da Etapa 3 (antes era {"recebido": true, ...}).
+    dados = resposta.json()
+    assert dados["sucesso"] is True
+    assert [t["lexema"] for t in dados["tokens"]] == ["idade", "=", "17", ""]
