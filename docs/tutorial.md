@@ -119,9 +119,79 @@ Digite e analise:
 
 Não aparece nenhum erro léxico, porque `=`, `=`, `17` e `idade` são todos tokens válidos. Mas isso
 não é um comando Python que faça sentido! Verificar a **ordem** dos tokens é trabalho da próxima
-fase, a **análise sintática** (Etapa 4 do projeto).
+fase, a **análise sintática**. Repare que, logo abaixo do resumo léxico (verde), aparece o resumo
+sintático (amarelo), com um erro: *"um comando não pode começar com '='"*.
 
-## 8. Exercícios
+## 8. A segunda fase: o parser monta uma árvore
+
+Depois do scanner vem o **parser** (analisador sintático). O scanner reconhece as "palavras"; o parser
+verifica se elas formam "frases" válidas e organiza o programa numa **árvore**.
+
+Para isso ele segue uma **gramática**: um conjunto de regras que diz quais sequências de tokens são
+permitidas. Uma regra se lê assim:
+
+```
+soma = termo { ( "+" | "-" ) termo }
+```
+
+"Uma *soma* é um *termo*, seguido de zero ou mais vezes (`{ }`) um `+` ou um `-` e outro *termo*." A
+gramática completa do projeto tem 15 regras e está em [gramatica.md](gramatica.md).
+
+### Mão na massa: por que `10 + 5 * 2` dá 20, e não 30?
+
+1. Escolha o exemplo **"8. Precedência: 10 + 5 * 2"** e clique em **Analisar**.
+2. Desça até **Árvore sintática**. Veja a primeira atribuição:
+
+```
+■ Atribuição: resultado = …
+├── ● Identificador: resultado
+└── ◆ Adição (+)
+    ├── ● Inteiro: 10
+    └── ◆ Multiplicação (*)
+        ├── ● Inteiro: 5
+        └── ● Inteiro: 2
+```
+
+A **multiplicação está abaixo da adição**. Numa árvore, o que está embaixo é calculado primeiro:
+primeiro `5 * 2 = 10`, depois `10 + 10 = 20`. É isso que significa "a multiplicação tem precedência
+maior".
+
+3. Clique no nó **Multiplicação**. O trecho `5 * 2` fica destacado em azul no código, e o quadro
+   "Nó selecionado" mostra a regra que o reconheceu.
+4. Em **Construção passo a passo**, clique em **Próximo ▶** várias vezes. Os nós aparecem na ordem em
+   que o parser os cria: primeiro os números, depois a multiplicação, só depois a adição e, por
+   último, o programa inteiro.
+5. Veja agora a terceira linha, `(10 + 5) * 2`: os parênteses trocaram de lugar a adição e a
+   multiplicação na árvore. E os parênteses em si **não aparecem** na AST: a própria forma da árvore
+   já diz o que vem primeiro.
+
+### AST e árvore de derivação
+
+Clique na aba **Árvore de derivação**. Ela mostra **todas** as regras que o parser usou, com todos os
+tokens, inclusive os parênteses e o fim de linha. Um simples `10` passa por 11 regras até virar folha!
+A **AST** é o resumo, só com o que importa para o significado. Compare a contagem no topo:
+*"AST: 22 nós · Árvore de derivação: 105 nós"*.
+
+### Quando o parser encontra um erro
+
+Escolha **"10. Vários erros sintáticos"** e analise. O parser mostra **quatro** erros, um por linha:
+quando encontra um erro, ele pula até o fim da linha e continua no comando seguinte.
+
+| Mensagem | O que significa | Como corrigir |
+| --- | --- | --- |
+| `depois de '+' era esperado um valor` | A conta ficou pela metade | `x = 5 + 1` |
+| `depois de '=' era esperado um valor (...), mas foi encontrado o operador '*'` | Falta o primeiro valor da multiplicação | `y = 3 * 2` |
+| `este ')' está sobrando` | Há mais `)` do que `(` | `z = (1 + 2)` |
+| `só um nome (identificador) pode receber um valor com '='` | O `=` guarda o valor da direita no nome da esquerda, e `17` não é um nome | `idade = 17` |
+
+Cada erro também mostra o que o parser **encontrou**, o que ele **esperava** e a **regra** da gramática
+que não foi respeitada. O ponto do erro fica sublinhado em laranja no código.
+
+> **Erro léxico ou sintático?** O erro **léxico** é uma "palavra" que não existe (`@`, `10.5.2`). O
+> **sintático** é um conjunto de palavras válidas numa ordem que não forma uma frase (`x = 5 +`). Na
+> tela, cada grupo tem o seu selo: **Léxico** ou **Sintático**.
+
+## 9. Exercícios
 
 1. Escreva `nota = 7.5` e `nota = "7.5"`. Quais categorias o `7.5` recebe em cada caso?
 2. Quantos tokens tem `print("Oi", nome)`? Conte antes de analisar e depois confira.
@@ -129,6 +199,10 @@ fase, a **análise sintática** (Etapa 4 do projeto).
 4. Escreva `ligado = true` (com `t` minúsculo). Que categoria o `true` recebe? Por quê?
 5. Escreva um código com **exatamente dois** erros léxicos diferentes e confira se o scanner encontra
    os dois.
+6. Desenhe no papel a AST de `x = 20 - 5 - 3`. A subtração de cima é `20 - (5 - 3)` ou `(20 - 5) - 3`?
+   Analise e confira.
+7. Qual a diferença entre `2 + 3 * 4` e `(2 + 3) * 4` na árvore? E no resultado da conta?
+8. Por que `x = 5 +` é um erro **sintático**, e não léxico?
 
 <details>
 <summary>Respostas</summary>
@@ -140,5 +214,10 @@ fase, a **análise sintática** (Etapa 4 do projeto).
 4. `IDENTIFICADOR`. O Python diferencia maiúsculas de minúsculas: só `True` é booleano, e `true` é
    um nome qualquer.
 5. Por exemplo, `x = 1.2.3 $`: um número malformado e um caractere não reconhecido.
+6. `(20 - 5) - 3`, que dá 12. A subtração de dentro (mais embaixo) é `20 - 5`: o `-` junta pela
+   esquerda.
+7. Em `2 + 3 * 4`, a multiplicação fica embaixo (14). Em `(2 + 3) * 4`, a adição fica embaixo (20).
+8. Porque todos os tokens (`x`, `=`, `5`, `+`) existem. O problema é a **ordem**: depois de `+` a
+   gramática exige um valor, e o comando acabou.
 
 </details>
