@@ -1,39 +1,46 @@
 """Analisador sintático (parser) do subconjunto de Python usado no projeto.
 
 Estratégia: descendente recursivo escrito à mão. Cada não terminal da gramática
-(docs/gramatica.md) vira uma função com o mesmo nome. A função consome os tokens
-que pertencem à construção e devolve dois nós:
+(README, seção "Gramática do subconjunto", e docs/gramatica.md) vira uma função
+com o mesmo nome. A função consome os tokens que pertencem à construção e
+devolve dois nós:
 
 - o nó da AST (árvore sintática abstrata): só o que importa para o significado;
 - o nó da árvore de derivação (concreta): todos os não terminais e terminais
   usados, inclusive parênteses e a NOVA_LINHA.
 
 Erros: ao encontrar um erro, o parser registra uma mensagem didática e pula
-até o fim da linha (modo pânico). Assim mostra um erro por comando, sem cascata.
+até o fim do comando (modo pânico, sincronizado em NOVA_LINHA). Assim mostra
+um erro por comando, sem cascata.
+
+Erros léxicos: o parser roda mesmo quando o scanner encontrou erros, mas pula
+os comandos que contêm um erro léxico (eles faltam tokens, e o parser só
+apontaria problemas sem sentido). As linhas puladas são devolvidas.
 
 Uso:
-    tokens, _ = analisar_lexico("x = 1 + 2")
-    ast, derivacao, erros = analisar_sintaxe(tokens)
+    tokens, erros_lexicos = analisar_lexico("x = 1 + 2")
+    ast, derivacao, erros, linhas_ignoradas = analisar_sintaxe(tokens, erros_lexicos)
 """
 
 # ---------- Gramática (uma regra por não terminal) ----------
 
 REGRAS = {
-    "programa": "programa = { comando NOVA_LINHA }",
-    "comando": "comando = atribuicao | expressao",
+    "programa": "programa = { comando }",
+    "comando": "comando = ( atribuicao | expressao ) NOVA_LINHA",
     "atribuicao": 'atribuicao = IDENTIFICADOR "=" expressao',
-    "expressao": "expressao = disjuncao",
-    "disjuncao": 'disjuncao = conjuncao { "or" conjuncao }',
-    "conjuncao": 'conjuncao = negacao { "and" negacao }',
-    "negacao": 'negacao = "not" negacao | comparacao',
-    "comparacao": 'comparacao = soma [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) soma ]',
+    "expressao": "expressao = exp_ou",
+    "exp_ou": 'exp_ou = exp_e { "or" exp_e }',
+    "exp_e": 'exp_e = exp_nao { "and" exp_nao }',
+    "exp_nao": 'exp_nao = "not" exp_nao | comparacao',
+    "comparacao": 'comparacao = soma { ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) soma }',
     "soma": 'soma = termo { ( "+" | "-" ) termo }',
     "termo": 'termo = unario { ( "*" | "/" | "//" | "%" ) unario }',
     "unario": 'unario = ( "+" | "-" ) unario | potencia',
     "potencia": 'potencia = primario [ "**" unario ]',
-    "primario": ("primario = LITERAL_INTEIRO | LITERAL_REAL | LITERAL_STRING | LITERAL_BOOLEANO"
-                 ' | "None" | IDENTIFICADOR [ argumentos ] | "(" expressao ")"'),
-    "argumentos": 'argumentos = "(" [ expressao { "," expressao } ] ")"',
+    "primario": 'primario = atomo { "(" [ argumentos ] ")" }',
+    "argumentos": 'argumentos = expressao { "," expressao }',
+    "atomo": ('atomo = IDENTIFICADOR | LITERAL_INTEIRO | LITERAL_REAL | LITERAL_STRING'
+              ' | LITERAL_BOOLEANO | "None" | "(" expressao ")"'),
 }
 
 # operador -> (tipo do nó, rótulo legível)
@@ -65,9 +72,13 @@ LIMITE_ALTURA_AST = 250
 LIMITE_ALTURA_DERIVACAO = 400
 
 
-def analisar_sintaxe(tokens):
-    """Devolve (ast, derivacao, erros). Se houver erro, ast e derivacao são None."""
-    return _Parser(tokens).executar()
+def analisar_sintaxe(tokens, erros_lexicos=()):
+    """Devolve (ast, derivacao, erros, linhas_ignoradas).
+
+    Se houver erro sintático, ast e derivacao são None. linhas_ignoradas lista as
+    linhas dos comandos que não foram analisados por conterem erro léxico.
+    """
+    return _Parser(tokens, erros_lexicos).executar()
 
 
 class ErroSintatico(Exception):
@@ -94,10 +105,12 @@ def _remover_alturas(raiz):
 
 
 class _Parser:
-    def __init__(self, tokens):
+    def __init__(self, tokens, erros_lexicos):
         self.tokens = tokens
+        self.linhas_com_erro_lexico = {e["linha"] for e in erros_lexicos}
         self.pos = 0
         self.erros = []
+        self.linhas_ignoradas = []
         self.proximo_id = 1
         self.aninhamento = 0
         self.parenteses_abertos = []  # tokens "(" ainda não fechados (para mensagens)
@@ -112,6 +125,10 @@ class _Parser:
         token = self.atual(deslocamento)
         return (token is not None and token["lexema"] == lexema
                 and token["tipo"] in ("OPERADOR", "DELIMITADOR", "PALAVRA_RESERVADA"))
+
+    def eh_nova_linha(self):
+        token = self.atual()
+        return token is not None and token["tipo"] == "NOVA_LINHA"
 
     def consumir(self):
         token = self.atual()
@@ -164,8 +181,9 @@ class _Parser:
 
     # ---------- erros ----------
 
-    def erro(self, explicacao, esperado, regra, token=None):
-        token = token if token is not None else self.atual()
+    def erro(self, explicacao, esperado, regra, token=None, usar_atual=True):
+        if usar_atual and token is None:
+            token = self.atual()
         if token is None:  # acabaram os tokens: aponta logo depois do último
             ultimo = self.tokens[-1]
             linha, coluna = ultimo["linha"], ultimo["coluna"] + len(ultimo["lexema"])
@@ -193,30 +211,46 @@ class _Parser:
     def sair(self):
         self.aninhamento -= 1
 
-    def sincronizar(self):
-        """Modo pânico: descarta tokens até o fim da linha atual (inclusive)."""
+    def pular_comando(self):
+        """Descarta tokens até o fim do comando atual (a próxima NOVA_LINHA, inclusive)."""
         self.aninhamento = 0
         self.parenteses_abertos = []
         while self.pos < len(self.tokens):
             if self.consumir()["tipo"] == "NOVA_LINHA":
                 return
 
+    def comando_tem_erro_lexico(self):
+        """O comando que começa aqui (até a próxima NOVA_LINHA) cobre alguma linha com erro léxico?"""
+        if not self.linhas_com_erro_lexico:
+            return None
+        fim = self.pos
+        while fim < len(self.tokens) and self.tokens[fim]["tipo"] != "NOVA_LINHA":
+            fim += 1
+        ultimo = self.tokens[min(fim, len(self.tokens) - 1)]
+        linhas = range(self.tokens[self.pos]["linha"], ultimo["linha"] + 1)
+        return [n for n in linhas if n in self.linhas_com_erro_lexico] or None
+
     # ---------- programa e comandos ----------
 
     def executar(self):
         comandos_ast, comandos_der = [], []
         while self.pos < len(self.tokens):
+            linhas = self.comando_tem_erro_lexico()
+            if linhas:
+                # Comando com erro léxico: faltam tokens nele, então não é analisado.
+                self.linhas_ignoradas.extend(linhas)
+                self.pular_comando()
+                continue
             try:
                 ast, der = self.comando()
-                self.fim_do_comando(ast)
                 comandos_ast.append(ast)
-                comandos_der.extend([der, self.terminal(self.consumir())])
+                comandos_der.append(der)
             except ErroSintatico as e:
                 self.erros.append(e.dados)
-                self.sincronizar()
+                self.pular_comando()
 
         if self.erros:
-            return None, None, self.erros
+            return None, None, self.erros, self.linhas_ignoradas
 
         programa = {
             "id": self.proximo_id,
@@ -224,8 +258,8 @@ class _Parser:
             "rotulo": "Programa",
             "atributos": {"comandos": len(comandos_ast)},
             "regra": REGRAS["programa"],
-            "linha": self.tokens[0]["linha"] if self.tokens else 1,
-            "coluna": self.tokens[0]["coluna"] if self.tokens else 1,
+            "linha": comandos_ast[0]["linha"] if comandos_ast else 1,
+            "coluna": comandos_ast[0]["coluna"] if comandos_ast else 1,
             "linhaFim": comandos_ast[-1]["linhaFim"] if comandos_ast else 1,
             "colunaFim": comandos_ast[-1]["colunaFim"] if comandos_ast else 1,
             "filhos": comandos_ast,
@@ -233,12 +267,31 @@ class _Parser:
         derivacao = {"tipo": "NAO_TERMINAL", "simbolo": "programa", "filhos": comandos_der}
         _remover_alturas(programa)
         _remover_alturas(derivacao)
-        return programa, derivacao, []
+        return programa, derivacao, [], self.linhas_ignoradas
+
+    def comando(self):
+        token = self.atual()
+        if token["tipo"] == "IDENTIFICADOR" and self.eh("=", 1):
+            ast, der = self.atribuicao()   # dois tokens à frente decidem: "x =" é atribuição
+        else:
+            if token["tipo"] == "PALAVRA_RESERVADA" and self.eh("=", 1):
+                self.erro(f"a palavra reservada {_texto(token)} não pode ser usada como nome de variável: "
+                          "ela é reservada pelo Python. Escolha outro nome.", ["nome"], "atribuicao")
+            if token["tipo"] == "PALAVRA_RESERVADA" and token["lexema"] not in RESERVADAS_DO_SUBCONJUNTO:
+                self.erro(f"a palavra reservada {_texto(token)} não faz parte do subconjunto desta "
+                          "ferramenta. Comandos com blocos (if, else, while, for, def...) ainda não "
+                          "são suportados.", ["nome", "valor"], "comando")
+            if self.eh("="):
+                self.erro("um comando não pode começar com '='. Para guardar um valor, escreva o "
+                          "nome antes: nome = valor.", ["nome", "valor"], "comando")
+            ast, der = self.expressao()
+        self.fim_do_comando(ast)
+        return ast, self.nt("comando", [der, self.terminal(self.consumir())])
 
     def fim_do_comando(self, ast):
         """Depois de um comando completo, só pode vir a NOVA_LINHA."""
         token = self.atual()
-        if token is not None and token["tipo"] == "NOVA_LINHA":
+        if self.eh_nova_linha():
             return
         if self.eh("="):
             if ast["tipo"] == "ATRIBUICAO":
@@ -249,26 +302,11 @@ class _Parser:
                       ["fim da linha"], "atribuicao")
         if self.eh(")"):
             self.erro("este ')' está sobrando: não há nenhum '(' aberto para ele fechar.",
-                      ["fim da linha"], "primario")
+                      ["fim da linha"], "atomo")
         self.erro(f"era esperado o fim do comando (quebra de linha) depois de {_texto(self.anterior())}, "
                   f"mas foi encontrado {_texto(token)}. Cada linha deve ter um único comando; "
                   "talvez falte um operador entre os dois valores.",
-                  ["fim da linha"], "programa")
-
-    def comando(self):
-        token = self.atual()
-        if token["tipo"] == "IDENTIFICADOR" and self.eh("=", 1):
-            ast, der = self.atribuicao()
-        else:
-            if token["tipo"] == "PALAVRA_RESERVADA" and token["lexema"] not in RESERVADAS_DO_SUBCONJUNTO:
-                self.erro(f"a palavra reservada {_texto(token)} não faz parte do subconjunto desta "
-                          "ferramenta. Comandos com blocos (if, else, while, for, def...) ainda não "
-                          "são suportados.", ["nome", "valor"], "comando")
-            if self.eh("="):
-                self.erro("um comando não pode começar com '='. Para guardar um valor, escreva o "
-                          "nome antes: nome = valor.", ["nome", "valor"], "comando")
-            ast, der = self.expressao()
-        return ast, self.nt("comando", [der])
+                  ["fim da linha"], "comando")
 
     def atribuicao(self):
         inicio = self.pos
@@ -286,7 +324,7 @@ class _Parser:
 
     def expressao(self):
         self.entrar(self.atual())
-        ast, der = self.disjuncao()
+        ast, der = self.exp_ou()
         self.sair()
         return ast, self.nt("expressao", [der])
 
@@ -305,41 +343,45 @@ class _Parser:
             filhos_der += [self.terminal(op), der_direita]
         return ast, self.nt(simbolo, filhos_der)
 
-    def disjuncao(self):
-        return self.binaria("disjuncao", self.conjuncao, {"or": ("OU_LOGICO", "Ou lógico")})
+    def exp_ou(self):
+        return self.binaria("exp_ou", self.exp_e, {"or": ("OU_LOGICO", "Ou lógico")})
 
-    def conjuncao(self):
-        return self.binaria("conjuncao", self.negacao, {"and": ("E_LOGICO", "E lógico")})
+    def exp_e(self):
+        return self.binaria("exp_e", self.exp_nao, {"and": ("E_LOGICO", "E lógico")})
 
-    def negacao(self):
+    def exp_nao(self):
         if not self.eh("not"):
             ast, der = self.comparacao()
-            return ast, self.nt("negacao", [der])
+            return ast, self.nt("exp_nao", [der])
         inicio = self.pos
         op = self.consumir()
         self.entrar(op)
-        operando, der_operando = self.negacao()
+        operando, der_operando = self.exp_nao()
         self.sair()
-        ast = self.no("NAO_LOGICO", "Não lógico (not)", "negacao", inicio, [operando], {"operador": "not"})
-        return ast, self.nt("negacao", [self.terminal(op), der_operando])
+        ast = self.no("NAO_LOGICO", "Não lógico (not)", "exp_nao", inicio, [operando], {"operador": "not"})
+        return ast, self.nt("exp_nao", [self.terminal(op), der_operando])
 
     def eh_relacional(self):
         token = self.atual()
         return token is not None and token["tipo"] == "OPERADOR" and token["lexema"] in OPERADORES_RELACIONAIS
 
     def comparacao(self):
+        """Como no Python, a < b < c é uma comparação só, que vale (a < b) and (b < c)."""
         inicio = self.pos
         ast, der = self.soma()
-        filhos_der = [der]
-        if self.eh_relacional():
+        operandos, operadores, filhos_der = [ast], [], [der]
+        while self.eh_relacional():
             op = self.consumir()
             direita, der_direita = self.soma()
-            ast = self.no("COMPARACAO", f"Comparação ({op['lexema']})", "comparacao", inicio,
-                          [ast, direita], {"operador": op["lexema"]})
+            operandos.append(direita)
+            operadores.append(op["lexema"])
             filhos_der += [self.terminal(op), der_direita]
-            if self.eh_relacional():
-                self.erro("comparações encadeadas (como a < b < c) não fazem parte do subconjunto. "
-                          "Use 'and': a < b and b < c.", ["fim da linha", "and", "or"], "comparacao")
+        if operadores:
+            if len(operadores) == 1:
+                rotulo = f"Comparação ({operadores[0]})"
+            else:
+                rotulo = f"Comparação encadeada ({' '.join(operadores)})"
+            ast = self.no("COMPARACAO", rotulo, "comparacao", inicio, operandos, {"operadores": operadores})
         return ast, self.nt("comparacao", filhos_der)
 
     def soma(self):
@@ -377,30 +419,63 @@ class _Parser:
         return ast, self.nt("potencia", [der_base, self.terminal(op), der_expoente])
 
     def primario(self):
+        """Um átomo seguido de zero ou mais chamadas: print(x), f(1)(2)."""
+        inicio = self.pos
+        ast, der = self.atomo()
+        filhos_der = [der]
+        while self.eh("("):
+            abre = self.consumir()
+            self.parenteses_abertos.append(abre)
+            filhos_der.append(self.terminal(abre))
+            argumentos = []
+            if not self.eh(")"):
+                argumentos, der_argumentos = self.argumentos()
+                filhos_der.append(der_argumentos)
+            if not self.eh(")"):
+                nome = f"'{ast['atributos']['nome']}'" if ast["tipo"] == "IDENTIFICADOR" else "função"
+                self.erro(f"era esperado ',' entre os argumentos ou ')' para fechar a chamada de {nome} "
+                          f"(aberta na linha {abre['linha']}, coluna {abre['coluna']}), "
+                          f"mas foi encontrado {_texto(self.atual())}.", [",", ")"], "argumentos")
+            filhos_der.append(self.terminal(self.consumir()))
+            self.parenteses_abertos.pop()
+            if ast["tipo"] == "IDENTIFICADOR":
+                rotulo = f"Chamada de função: {ast['atributos']['nome']}(…)"
+            else:
+                rotulo = "Chamada de função (…)"
+            ast = self.no("CHAMADA_FUNCAO", rotulo, "primario", inicio, [ast, *argumentos],
+                          {"argumentos": len(argumentos)})
+        return ast, self.nt("primario", filhos_der)
+
+    def argumentos(self):
+        asts, ders = [], []
+        while True:
+            ast, der = self.expressao()
+            asts.append(ast)
+            ders.append(der)
+            if not self.eh(","):
+                return asts, self.nt("argumentos", ders)
+            ders.append(self.terminal(self.consumir()))
+
+    def atomo(self):
         token = self.atual()
         inicio = self.pos
 
         if token is not None and token["tipo"] in LITERAIS:
             self.consumir()
-            ast = self.no(token["tipo"], f"{LITERAIS[token['tipo']]}: {token['lexema']}", "primario",
+            ast = self.no(token["tipo"], f"{LITERAIS[token['tipo']]}: {token['lexema']}", "atomo",
                           inicio, atributos={"valor": token["lexema"]})
-            return ast, self.nt("primario", [self.terminal(token)])
+            return ast, self.nt("atomo", [self.terminal(token)])
 
         if self.eh("None"):
             self.consumir()
-            ast = self.no("LITERAL_NONE", "None", "primario", inicio, atributos={"valor": "None"})
-            return ast, self.nt("primario", [self.terminal(token)])
+            ast = self.no("LITERAL_NONE", "None", "atomo", inicio, atributos={"valor": "None"})
+            return ast, self.nt("atomo", [self.terminal(token)])
 
         if token is not None and token["tipo"] == "IDENTIFICADOR":
             self.consumir()
-            if self.eh("("):
-                argumentos, der_argumentos = self.argumentos(token)
-                ast = self.no("CHAMADA_FUNCAO", f"Chamada de função: {token['lexema']}(…)", "primario",
-                              inicio, argumentos, {"nome": token["lexema"]})
-                return ast, self.nt("primario", [self.terminal(token), der_argumentos])
-            ast = self.no("IDENTIFICADOR", f"Identificador: {token['lexema']}", "primario", inicio,
+            ast = self.no("IDENTIFICADOR", f"Identificador: {token['lexema']}", "atomo", inicio,
                           atributos={"nome": token["lexema"]})
-            return ast, self.nt("primario", [self.terminal(token)])
+            return ast, self.nt("atomo", [self.terminal(token)])
 
         if self.eh("("):
             abre = self.consumir()
@@ -409,32 +484,13 @@ class _Parser:
             if not self.eh(")"):
                 self.erro(f"era esperado ')' para fechar o parêntese aberto na linha {abre['linha']}, "
                           f"coluna {abre['coluna']}, mas foi encontrado {_texto(self.atual())}.",
-                          [")"], "primario")
+                          [")"], "atomo")
             fecha = self.consumir()
             self.parenteses_abertos.pop()
             # Os parênteses só agrupam: não viram nó na AST, só na árvore de derivação.
-            return ast, self.nt("primario", [self.terminal(abre), der, self.terminal(fecha)])
+            return ast, self.nt("atomo", [self.terminal(abre), der, self.terminal(fecha)])
 
         self.erro_valor_esperado(token)
-
-    def argumentos(self, nome):
-        abre = self.consumir()
-        self.parenteses_abertos.append(abre)
-        asts, ders = [], [self.terminal(abre)]
-        while not self.eh(")"):
-            ast, der = self.expressao()
-            asts.append(ast)
-            ders.append(der)
-            if self.eh(","):
-                ders.append(self.terminal(self.consumir()))
-                continue
-            if not self.eh(")"):
-                self.erro(f"era esperado ',' entre os argumentos ou ')' para fechar a chamada de "
-                          f"'{nome['lexema']}' (aberta na linha {abre['linha']}, coluna {abre['coluna']}), "
-                          f"mas foi encontrado {_texto(self.atual())}.", [",", ")"], "argumentos")
-        ders.append(self.terminal(self.consumir()))
-        self.parenteses_abertos.pop()
-        return asts, self.nt("argumentos", ders)
 
     def erro_valor_esperado(self, token):
         """Monta a mensagem mais útil possível quando faltou um valor."""
@@ -445,34 +501,38 @@ class _Parser:
             if self.parenteses_abertos:
                 abre = self.parenteses_abertos[-1]
                 self.erro(f"o código terminou antes de fechar o parêntese aberto na linha "
-                          f"{abre['linha']}, coluna {abre['coluna']}.", [")"], "primario", None)
+                          f"{abre['linha']}, coluna {abre['coluna']}.", [")"], "atomo", usar_atual=False)
             self.erro(f"o código terminou no meio de uma expressão: {depois}era esperado um valor.",
-                      ESPERADO_VALOR, "primario", None)
+                      ESPERADO_VALOR, "atomo", usar_atual=False)
 
         if token["tipo"] == "NOVA_LINHA":
             self.erro(f"expressão incompleta: {depois}era esperado um valor, mas {_texto(token)} chegou "
-                      "antes.", ESPERADO_VALOR, "primario")
+                      "antes.", ESPERADO_VALOR, "atomo")
 
         if token["lexema"] == "=" and anterior is not None and anterior["tipo"] == "OPERADOR":
             self.erro(f"operadores compostos como '{anterior['lexema']}=' não fazem parte do subconjunto. "
                       f"Em vez de x {anterior['lexema']}= 1, escreva x = x {anterior['lexema']} 1.",
-                      ESPERADO_VALOR, "primario")
+                      ESPERADO_VALOR, "atomo")
 
         if token["tipo"] == "OPERADOR":
             dica = (" Há dois operadores seguidos: entre eles precisa haver um valor."
                     if anterior is not None and anterior["tipo"] == "OPERADOR" else "")
             self.erro(f"{depois}era esperado um valor (número, texto, nome ou '('), mas foi encontrado "
-                      f"o operador {_texto(token)}.{dica}", ESPERADO_VALOR, "primario")
+                      f"o operador {_texto(token)}.{dica}", ESPERADO_VALOR, "atomo")
+
+        if token["lexema"] == ")" and anterior is not None and anterior["lexema"] == ",":
+            self.erro("há uma vírgula sobrando antes de ')': depois de ',' deve vir mais um argumento.",
+                      ESPERADO_VALOR, "argumentos")
 
         if token["lexema"] == ")":
             self.erro(f"{depois}era esperado um valor, mas foi encontrado ')'. "
                       "Não pode haver parênteses vazios nem um ')' sem valor antes dele.",
-                      ESPERADO_VALOR, "primario")
+                      ESPERADO_VALOR, "atomo")
 
         if token["tipo"] == "PALAVRA_RESERVADA":
-            self.erro(f"a palavra reservada {_texto(token)} não pode ser usada como valor"
-                      f"{' aqui' if token['lexema'] in RESERVADAS_DO_SUBCONJUNTO else ' e não faz parte do subconjunto'}.",
-                      ESPERADO_VALOR, "primario")
+            fora = "" if token["lexema"] in RESERVADAS_DO_SUBCONJUNTO else " e não faz parte do subconjunto"
+            self.erro(f"a palavra reservada {_texto(token)} não pode ser usada como valor aqui{fora}.",
+                      ESPERADO_VALOR, "atomo")
 
         self.erro(f"{depois}era esperado um valor (número, texto, nome ou '('), mas foi encontrado "
-                  f"{_texto(token)}.", ESPERADO_VALOR, "primario")
+                  f"{_texto(token)}.", ESPERADO_VALOR, "atomo")

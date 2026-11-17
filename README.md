@@ -70,6 +70,33 @@ problemas de uma vez.
 
 As mensagens nunca mostram detalhes internos do sistema.
 
+## Gramática do subconjunto (EBNF)
+
+A gramática abaixo define o que o parser aceita. Quase todas as decisões são tomadas olhando um único token à frente (LL(1)), o que permite escrevê-la à mão como um analisador descendente recursivo, com uma função por regra. A exceção é `comando`: um `IDENTIFICADOR` pode começar tanto `x = 1` quanto `x + 1`, e o parser olha o segundo token para decidir (LL(2)). As regras estão em ordem de precedência crescente, da mais fraca (or) para a mais forte (atomo), e a repetição { ... } indica associatividade à esquerda. A exceção é potencia, cuja recursão à direita em unario reproduz a associatividade à direita de ** no Python: 2 ** 3 ** 2 é 2 ** (3 ** 2).
+
+```ebnf
+programa     = { comando } ;
+comando      = ( atribuicao | expressao ) NOVA_LINHA ;
+atribuicao   = IDENTIFICADOR "=" expressao ;
+expressao    = exp_ou ;
+exp_ou       = exp_e { "or" exp_e } ;
+exp_e        = exp_nao { "and" exp_nao } ;
+exp_nao      = "not" exp_nao | comparacao ;
+comparacao   = soma { ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) soma } ;
+soma         = termo { ( "+" | "-" ) termo } ;
+termo        = unario { ( "*" | "/" | "//" | "%" ) unario } ;
+unario       = ( "+" | "-" ) unario | potencia ;
+potencia     = primario [ "**" unario ] ;
+primario     = atomo { "(" [ argumentos ] ")" } ;
+argumentos   = expressao { "," expressao } ;
+atomo        = IDENTIFICADOR | LITERAL_INTEIRO | LITERAL_REAL
+             | LITERAL_STRING | LITERAL_BOOLEANO | "None" | "(" expressao ")" ;
+```
+
+Os símbolos em maiúsculas são tokens produzidos pelo analisador léxico, descritos na tabela de escopo acima. Tudo que não aparece nesta gramática está fora do subconjunto: if, while, for, blocos e indentação, definição de funções e classes, listas, dicionários, atribuição composta (+=) e atribuição múltipla.
+
+A gramática detalhada (terminais e não terminais, precedência, conjuntos FIRST, exemplos válidos e inválidos, recuperação de erros) está em [docs/gramatica.md](docs/gramatica.md). O fluxo completo da análise, incluindo a decisão de rodar o parser mesmo na presença de erro léxico, está em [docs/fluxograma.md](docs/fluxograma.md). Os casos de teste que exercitam cada regra estão em [docs/casos-de-teste.md](docs/casos-de-teste.md).
+
 ## O scanner
 
 O scanner fica em [backend/scanner.py](backend/scanner.py) e foi **escrito à mão**, em Python puro.

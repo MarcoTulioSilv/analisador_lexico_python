@@ -7,7 +7,8 @@ interpretador real, que precedência e associatividade estão corretas.
 As duas árvores são convertidas para a mesma forma compacta, por exemplo
 ATRIBUICAO(x, ADICAO(1, MULTIPLICACAO(2, 3))). Diferença conhecida e tratada na
 conversão: o Python junta `a and b and c` num único nó com 3 valores; aqui ele é
-convertido para a forma binária à esquerda, igual à nossa.
+convertido para a forma binária à esquerda, igual à nossa. Já a comparação
+encadeada (a < b < c) é um nó só nas duas árvores.
 """
 import ast as py_ast
 
@@ -45,10 +46,11 @@ def do_python(no):
             texto = f"{tipo}({texto}, {do_python(valor)})"
         return texto
     if isinstance(no, py_ast.Compare):
-        assert len(no.ops) == 1  # comparação encadeada está fora do subconjunto
-        return f"COMPARACAO{COMPARACOES_PY[type(no.ops[0])]}({do_python(no.left)}, {do_python(no.comparators[0])})"
+        operadores = ",".join(COMPARACOES_PY[type(op)] for op in no.ops)
+        operandos = [do_python(no.left)] + [do_python(c) for c in no.comparators]
+        return f"COMPARACAO{operadores}({', '.join(operandos)})"
     if isinstance(no, py_ast.Call):
-        return f"CHAMADA_FUNCAO:{no.func.id}({', '.join(do_python(a) for a in no.args)})"
+        return f"CHAMADA:{do_python(no.func)}({', '.join(do_python(a) for a in no.args)})"
     if isinstance(no, py_ast.Name):
         return no.id
     if isinstance(no, py_ast.Constant):
@@ -73,9 +75,10 @@ def do_nosso(no):
     if tipo == "ATRIBUICAO":
         return f"ATRIBUICAO({no['atributos']['nome']}, {do_nosso(no['filhos'][1])})"
     if tipo == "CHAMADA_FUNCAO":
-        return f"CHAMADA_FUNCAO:{no['atributos']['nome']}({', '.join(do_nosso(f) for f in no['filhos'])})"
+        chamado, *argumentos = no["filhos"]
+        return f"CHAMADA:{do_nosso(chamado)}({', '.join(do_nosso(f) for f in argumentos)})"
     if tipo == "COMPARACAO":
-        tipo = f"COMPARACAO{no['atributos']['operador']}"
+        tipo = "COMPARACAO" + ",".join(no["atributos"]["operadores"])
     return f"{tipo}({', '.join(do_nosso(f) for f in no['filhos'])})"
 
 
@@ -101,13 +104,17 @@ PROGRAMAS = [
     "r = a or b or c",
     "r = (a or b) and c",
     "r = a + b >= c * d",
+    "r = a < b <= c != d",
+    "ok = 0 <= nota < 10 == True",
     "r = not not x",
     "r = ((1 + 2) * (3 - 4)) ** 2",
     # Chamadas e valores
     "print()",
     "print(1, 2.5, 'tres', True, None)",
     "x = max(a, min(b, -c)) + abs(d)",
-    "f(1,)",
+    "f(1)(2)",
+    "x = (f)(a, b)(c)",
+    "y = g(1) ** 2",
     "x = (1 +\n     2)",
     "x + 1\nTrue",
 ]
@@ -117,7 +124,7 @@ PROGRAMAS = [
 def test_nossa_ast_tem_a_mesma_estrutura_que_a_do_python(codigo):
     tokens, erros_lexicos = analisar_lexico(codigo)
     assert erros_lexicos == []
-    ast, _, erros = analisar_sintaxe(tokens)
+    ast, _, erros, _ = analisar_sintaxe(tokens)
     assert erros == [], [e["mensagem"] for e in erros]
     assert do_nosso(ast) == do_python(py_ast.parse(codigo))
 
@@ -129,7 +136,7 @@ def test_nossa_ast_tem_a_mesma_estrutura_que_a_do_python(codigo):
 def test_o_que_rejeitamos_o_python_tambem_rejeita(codigo):
     # Nenhum falso erro: tudo que o nosso parser recusa também é inválido para o Python.
     tokens, _ = analisar_lexico(codigo)
-    _, _, erros = analisar_sintaxe(tokens)
+    _, _, erros, _ = analisar_sintaxe(tokens)
     assert erros != []
     with pytest.raises(SyntaxError):
         compile(codigo, "<teste>", "exec")
