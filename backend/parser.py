@@ -166,7 +166,8 @@ class _Parser:
         altura = 1 + max((f["_altura"] for f in filhos), default=0)
         if altura > LIMITE_ALTURA_DERIVACAO:
             self.erro_limite(self.atual() or self.anterior())
-        return {"tipo": "NAO_TERMINAL", "simbolo": simbolo, "filhos": filhos, "_altura": altura}
+        return {"tipo": "NAO_TERMINAL", "simbolo": simbolo, "regra": REGRAS[simbolo],
+                "filhos": filhos, "_altura": altura}
 
     @staticmethod
     def terminal(token):
@@ -264,7 +265,8 @@ class _Parser:
             "colunaFim": comandos_ast[-1]["colunaFim"] if comandos_ast else 1,
             "filhos": comandos_ast,
         }
-        derivacao = {"tipo": "NAO_TERMINAL", "simbolo": "programa", "filhos": comandos_der}
+        derivacao = {"tipo": "NAO_TERMINAL", "simbolo": "programa", "regra": REGRAS["programa"],
+                     "filhos": comandos_der}
         _remover_alturas(programa)
         _remover_alturas(derivacao)
         return programa, derivacao, [], self.linhas_ignoradas

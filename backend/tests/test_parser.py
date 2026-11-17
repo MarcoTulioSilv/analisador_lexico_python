@@ -288,7 +288,20 @@ def test_programa_vazio():
     ast, derivacao, lista, ignoradas = analisar_sintaxe([])
     assert (lista, ignoradas) == ([], [])
     assert ast["tipo"] == "PROGRAMA" and ast["filhos"] == []
-    assert derivacao == {"tipo": "NAO_TERMINAL", "simbolo": "programa", "filhos": []}
+    assert derivacao == {"tipo": "NAO_TERMINAL", "simbolo": "programa",
+                         "regra": REGRAS["programa"], "filhos": []}
+
+
+def test_cada_nao_terminal_da_derivacao_traz_a_sua_regra():
+    _, derivacao, _ = analisar("x = (f(1) + 2) * -3")
+    pilha = [derivacao]
+    while pilha:
+        no = pilha.pop()
+        if no["tipo"] == "NAO_TERMINAL":
+            assert no["regra"] == REGRAS[no["simbolo"]]
+            pilha.extend(no["filhos"])
+        else:
+            assert "regra" not in no
 
 
 def test_so_comentarios():  # CT-23
