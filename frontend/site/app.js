@@ -112,6 +112,7 @@ function limparAnalise() {
   areaAnalise.hidden = true;
   tokensAtuais = [];
   passoAtual = -1;
+  limparArvore(); // arvore.js
 }
 
 function mostrarAnalise(codigo, dados) {
@@ -137,6 +138,8 @@ function mostrarAnalise(codigo, dados) {
 
   areaAnalise.hidden = false;
   irParaPasso(-1);
+
+  mostrarAnaliseSintatica(codigo, dados);
 }
 
 // Monta o código de novo, linha por linha, envolvendo cada token num <span> colorido.
@@ -166,6 +169,8 @@ function desenharCodigoColorido(codigo, tokens, erros) {
       if (marca.tipo === "NOVA_LINHA") {
         const span = criar("span", "↵", `tk tk-NOVA_LINHA`);
         span.dataset.indice = marca.indice;
+        span.dataset.linha = marca.linha;
+        span.dataset.coluna = marca.coluna;
         partes.push(span);
         continue;
       }
@@ -178,6 +183,8 @@ function desenharCodigoColorido(codigo, tokens, erros) {
       } else {
         const span = criar("span", texto, `tk tk-${marca.tipo}`);
         span.dataset.indice = marca.indice;
+        span.dataset.linha = marca.linha;     // usados para destacar o trecho de um nó da árvore
+        span.dataset.coluna = marca.coluna;
         span.title = `${marca.tipo}: ${marca.descricao}`;
         partes.push(span);
       }
