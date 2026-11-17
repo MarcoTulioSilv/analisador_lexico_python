@@ -140,6 +140,114 @@ tr.atual { background: #fff3bf; }
 .chip.tk-NOVA_LINHA { background: var(--c-NOVA_LINHA); color: #fff; }
 
 details summary { cursor: pointer; font-weight: bold; }
+details + details { margin-top: 12px; }
+
+/* ---------- Análise sintática (Etapa 4) ---------- */
+:root {
+  --c-comando: #1f5fbf;
+  --c-operacao: #8e44ad;
+  --c-valor: #1e7b34;
+}
+
+#resultado-sintatico { margin-top: 8px; padding: 12px; border-radius: 6px; }
+#resultado-sintatico.sucesso { background: #e3f6e5; color: #1d5e26; }
+#resultado-sintatico.aviso { background: #fff5d6; color: #6b5200; }
+
+/* Selos que diferenciam erro léxico de erro sintático (texto + cor). */
+.selo {
+  display: inline-block;
+  font-size: 0.75em;
+  padding: 2px 8px;
+  border-radius: 10px;
+  color: #fff;
+  vertical-align: middle;
+}
+.selo-lexico { background: #c0392b; }
+.selo-sintatico { background: #b35900; }
+
+#lista-erros-sintaticos { margin: 0; padding-left: 20px; color: #7a3d00; }
+#lista-erros-sintaticos li { margin-bottom: 8px; }
+.detalhes-erro { font-size: 0.85em; color: #555; margin-top: 2px; }
+
+.tk-erro-sintatico { text-decoration: underline dashed #b35900 2px; text-underline-offset: 3px; }
+.marca-erro-sintatico { color: #b35900; font-weight: bold; }
+.tk.no-selecionado { background: #d6e8ff; outline: 2px solid #5b9bea; }
+
+.abas { display: flex; gap: 4px; margin-bottom: 10px; border-bottom: 2px solid #ddd; }
+.aba {
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 6px 6px 0 0;
+  background: #eef1f5;
+  color: #333;
+}
+.aba.ativa { background: #2f6fd6; color: #fff; }
+
+.legenda-formas { font-size: 0.9em; color: #555; }
+.explicacao {
+  background: #f4f7fd;
+  border-left: 4px solid #2f6fd6;
+  padding: 8px 12px;
+}
+h4 { margin: 14px 0 6px; font-size: 0.95em; }
+
+.arvore-quadro {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px;
+  max-height: 520px;
+  overflow: auto;
+  background: #fcfcfd;
+}
+.arvore, .arvore ul { list-style: none; margin: 0; padding-left: 18px; }
+.arvore { padding-left: 0; }
+.arvore ul { border-left: 1px dashed #c8c8c8; margin-left: 9px; }
+.arvore li.recolhido > ul { display: none; }
+.linha-no { display: flex; align-items: flex-start; gap: 4px; padding: 2px 0; }
+.alternar, .sem-alternar {
+  flex: none;
+  width: 22px;
+  margin: 0;
+  padding: 2px 0;
+  background: none;
+  color: #555;
+  text-align: center;
+}
+.rotulo-no {
+  margin: 0;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: #222;
+  text-align: left;
+  white-space: nowrap;
+  transition: opacity 0.2s, background 0.2s;
+}
+.rotulo-no:hover { background: #eef3fb; }
+.rotulo-no.selecionado { border-color: #5b9bea; background: #d6e8ff; }
+.rotulo-no.no-atual { background: #ffe066; border-color: #e0a800; }
+.rotulo-no.pendente { opacity: 0.25; }
+.forma { font-size: 1.1em; }
+.cat-comando .forma { color: var(--c-comando); }
+.cat-operacao .forma { color: var(--c-operacao); }
+.cat-valor .forma { color: var(--c-valor); }
+.tipo-no { color: #888; font-size: 0.75em; }
+.regra-no { display: block; color: #777; font-size: 0.75em; white-space: pre; }
+.nao-terminal .texto-no { font-style: italic; color: #1f4f9f; }
+.terminal .lexema-no { color: #1e7b34; font-weight: bold; }
+
+#detalhes-no {
+  margin-top: 10px;
+  border: 1px solid #5b9bea;
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: #f4f8fe;
+}
+#detalhes-no dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; }
+#detalhes-no dt { font-weight: bold; }
+#detalhes-no dd { margin: 0; overflow-wrap: anywhere; }
+#detalhe-trecho { white-space: pre-wrap; }
 
 /* ---------- Celular ---------- */
 @media (max-width: 600px) {
@@ -152,4 +260,7 @@ details summary { cursor: pointer; font-weight: bold; }
   .controles button { flex: 1; padding: 8px 4px; font-size: 0.9em; white-space: nowrap; }
   /* A tabela mantém uma largura legível e rola dentro do próprio quadro. */
   #tabela-tokens { min-width: 640px; }
+  .aba { flex: 1; padding: 8px 6px; font-size: 0.85em; }
+  .arvore-quadro { max-height: 420px; }
+  #detalhes-no dl { grid-template-columns: 1fr; }
 }

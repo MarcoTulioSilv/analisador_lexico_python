@@ -1,5 +1,5 @@
 // Programas de exemplo, todos dentro do subconjunto do projeto.
-// Os exemplos 4 e 7 têm erros léxicos de propósito.
+// Os exemplos 4 e 7 têm erros léxicos de propósito; o 10 tem erros sintáticos.
 const EXEMPLOS = [
   {
     titulo: "1. Números: inteiro e float",
@@ -28,5 +28,17 @@ const EXEMPLOS = [
   {
     titulo: "7. Vários erros léxicos",
     codigo: "preco = 10.5.2\nemail = ana@escola\ntotal = 12abc",
+  },
+  {
+    titulo: "8. Precedência: 10 + 5 * 2",
+    codigo: "resultado = 10 + 5 * 2\nsubtracao = 20 - 5 - 3\ncom_parenteses = (10 + 5) * 2",
+  },
+  {
+    titulo: "9. Lógica e chamadas de função",
+    codigo: "idade = 17\npode_votar = idade >= 16 and not (idade > 70)\nprint(\"Vota?\", pode_votar)",
+  },
+  {
+    titulo: "10. Vários erros sintáticos",
+    codigo: "x = 5 +\ny = * 2\nz = (1 + 2))\n17 = idade",
   },
 ];

@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
 
+from parser import analisar_sintaxe
 from scanner import analisar_lexico
 from validacao import validar_codigo
 
@@ -19,10 +20,23 @@ def analisar():
     if erro:
         return jsonify(recebido=False, erro=erro), 400
 
-    # Etapa 3: análise léxica. Erros léxicos não são erro da requisição (continua 200);
-    # quem diz se o código passou é o campo "sucesso".
+    # Etapa 3: análise léxica. Erros (léxicos ou sintáticos) não são erro da requisição:
+    # a resposta continua 200 e quem diz se o código passou é o campo "sucesso".
     tokens, erros = analisar_lexico(codigo)
-    return jsonify(sucesso=not erros, tokens=tokens, erros=erros)
+
+    # Etapa 4: o parser roda mesmo com erro léxico (decisão registrada em docs/fluxograma.md),
+    # pulando os comandos que contêm erro léxico. Assim o aluno vê os dois tipos de erro de uma vez.
+    ast, derivacao, erros_sintaticos, linhas_ignoradas = analisar_sintaxe(tokens, erros)
+
+    return jsonify(
+        sucesso=not erros and not erros_sintaticos,  # a partir da Etapa 4: léxico E sintático
+        tokens=tokens,
+        erros=erros,                                  # erros léxicos (mesmo formato da Etapa 3)
+        ast=ast,
+        derivacao=derivacao,
+        erros_sintaticos=erros_sintaticos,
+        linhas_ignoradas=linhas_ignoradas,
+    )
 
 
 @app.errorhandler(Exception)

@@ -34,11 +34,17 @@
       <div id="resultado" role="status" aria-live="polite">
         O resultado da análise aparecerá aqui.
       </div>
+      <div id="resultado-sintatico" role="status" aria-live="polite" hidden></div>
 
       <div id="analise" hidden>
         <div id="secao-erros" hidden>
-          <h3>Erros léxicos</h3>
+          <h3><span class="selo selo-lexico">Léxico</span> Erros léxicos</h3>
           <ul id="lista-erros"></ul>
+        </div>
+
+        <div id="secao-erros-sintaticos" hidden>
+          <h3><span class="selo selo-sintatico">Sintático</span> Erros sintáticos</h3>
+          <ul id="lista-erros-sintaticos"></ul>
         </div>
 
         <h3>Código com os tokens destacados</h3>
@@ -61,6 +67,63 @@
             </thead>
             <tbody></tbody>
           </table>
+        </div>
+
+        <div id="secao-arvore" hidden>
+          <h3>Árvore sintática</h3>
+          <p id="contagem-arvores"></p>
+          <div class="abas" role="tablist">
+            <button id="aba-ast" type="button" role="tab" aria-selected="true"
+                    aria-controls="painel-ast" class="aba ativa">AST (árvore abstrata)</button>
+            <button id="aba-derivacao" type="button" role="tab" aria-selected="false"
+                    aria-controls="painel-derivacao" class="aba">Árvore de derivação</button>
+          </div>
+          <div class="controles">
+            <button id="expandir-tudo" type="button" class="secundario">⊞ Expandir tudo</button>
+            <button id="recolher-tudo" type="button" class="secundario">⊟ Recolher tudo</button>
+          </div>
+
+          <div id="painel-ast" role="tabpanel" aria-labelledby="aba-ast">
+            <p class="legenda-formas">
+              <span class="forma cat-comando">■</span> comando
+              <span class="forma cat-operacao">◆</span> operação
+              <span class="forma cat-valor">●</span> valor ou nome
+              · clique num nó para ver o trecho do código e a regra da gramática.
+            </p>
+            <h4>Construção passo a passo</h4>
+            <div class="controles">
+              <button id="arvore-anterior" type="button" class="secundario">◀ Anterior</button>
+              <button id="arvore-reproduzir" type="button" class="secundario">▶ Reproduzir</button>
+              <button id="arvore-proximo" type="button" class="secundario">Próximo ▶</button>
+            </div>
+            <p id="arvore-explicacao" class="explicacao"></p>
+            <div class="rolagem arvore-quadro">
+              <ul id="arvore-ast" class="arvore" role="tree" aria-label="Árvore sintática abstrata"></ul>
+            </div>
+          </div>
+
+          <div id="painel-derivacao" role="tabpanel" aria-labelledby="aba-derivacao" hidden>
+            <p class="explicacao">
+              A <strong>árvore de derivação</strong> mostra cada regra da gramática usada para reconhecer o
+              código, inclusive os parênteses e o fim de linha. A <strong>AST</strong> guarda só o que
+              importa para o significado. Por isso a derivação é bem maior e mais funda: por exemplo, um
+              simples <code>17</code> passa por <em>expressao → exp_ou → exp_e → exp_nao → comparacao →
+              soma → termo → unario → potencia → primario → atomo</em> até virar folha.
+            </p>
+            <div class="rolagem arvore-quadro">
+              <ul id="arvore-derivacao" class="arvore" role="tree" aria-label="Árvore de derivação"></ul>
+            </div>
+          </div>
+
+          <div id="detalhes-no" hidden>
+            <h4>Nó selecionado</h4>
+            <dl>
+              <dt>Nó</dt><dd id="detalhe-rotulo"></dd>
+              <dt>Regra da gramática</dt><dd><code id="detalhe-regra"></code></dd>
+              <dt>Posição</dt><dd id="detalhe-posicao"></dd>
+              <dt>Trecho do código</dt><dd><code id="detalhe-trecho"></code></dd>
+            </dl>
+          </div>
         </div>
       </div>
     </section>
@@ -85,10 +148,28 @@
           diferentes. O tipo do valor começa a ser decidido aqui, só pela forma como ele foi escrito.
         </p>
       </details>
+      <details id="o-que-e-sintatica">
+        <summary>O que é análise sintática, AST e árvore de derivação?</summary>
+        <p>
+          Depois do scanner vem o <strong>parser</strong> (analisador sintático). O scanner reconhece as
+          "palavras"; o parser verifica se elas formam "frases" válidas segundo a
+          <strong>gramática</strong> da linguagem, e organiza o programa numa árvore.
+        </p>
+        <ul>
+          <li>A <strong>AST</strong> (árvore sintática abstrata) guarda só o que importa: em
+            <code>10 + 5 * 2</code>, a multiplicação fica <em>abaixo</em> da adição, porque é calculada
+            antes. Os parênteses somem: a própria forma da árvore já diz quem vem primeiro.</li>
+          <li>A <strong>árvore de derivação</strong> mostra todas as regras da gramática que o parser
+            aplicou, com todos os tokens. É a "prova completa"; a AST é o "resumo".</li>
+          <li>Um <strong>erro sintático</strong> acontece quando os tokens são válidos mas estão numa
+            ordem que a gramática não permite, como <code>x = 5 +</code> (falta um valor).</li>
+        </ul>
+      </details>
     </section>
   </main>
 
   <script src="exemplos.js"></script>
   <script src="app.js"></script>
+  <script src="arvore.js"></script>
 </body>
 </html>

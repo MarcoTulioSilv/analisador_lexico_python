@@ -4,6 +4,199 @@ Cada execução relevante fica registrada aqui, da mais recente para a mais anti
 
 ---
 
+## 2026-11-17: Etapa 4B, árvore sintática na interface
+
+**Tipos:** interface, integração e ponta a ponta (Playwright/Chromium), implantação e regressão
+(backend inteiro e testes de navegador das Etapas 2 e 3).
+
+**Comandos:**
+
+```bash
+docker compose up --build -d
+docker compose run --rm backend pytest -v         # backend
+docker compose --profile testes run --rm testes   # navegador
+```
+
+**Resultado:**
+
+| Conjunto | Aprovados | Reprovados |
+| --- | --- | --- |
+| Backend (`backend/tests/`) | 416 | 0 |
+| Navegador (`testes/`) | 117 | 0 |
+| **Total** | **533** | **0** |
+
+Testes novos em `testes/test_arvore.py` (40, contando os 6 casos parametrizados de robustez):
+- **Resumo sintático:** o resumo léxico da Etapa 3 continua igual.
+- **AST para código válido:** a precedência aparece na árvore; cada nó mostra forma, tipo e regra;
+  comparação encadeada e chamada; CT-23 (só comentário) e CT-25 (dez níveis de parênteses).
+- **Seleção de nó:** destaca o trecho e mostra os detalhes, inclusive com parênteses e várias linhas.
+- **Expandir e recolher:** tudo de uma vez ou um nó só.
+- **Aba de derivação:** os parênteses aparecem só nela; a contagem compara as duas árvores; dá para
+  selecionar um não terminal.
+- **Consistência (enunciado 7.3.1):** as folhas da derivação são os mesmos tokens da tabela.
+- **Construção passo a passo:** a ordem filhos → pai, até o programa; Reproduzir; abre os nós
+  recolhidos.
+- **Erros sintáticos:** os 4 do exemplo 10, com encontrado, esperado e regra; o sublinhado no código;
+  a marca de fim do código (CT-16).
+- **Léxico × sintático:** cada um com o seu selo; a linha com erro léxico é pulada (CT-27); os erros
+  somem depois de corrigir.
+- **Robustez:** 6 entradas inválidas ou grandes não quebram a tela; HTML no código aparece como texto;
+  uma falha de rede esconde a árvore anterior.
+- **Explicação e celular:** a explicação de AST e derivação aparece; não há rolagem horizontal a 375 px.
+- **Prints:** `arvore-sintatica.png`, `arvore-derivacao.png`, `erros-sintaticos.png` e
+  `celular-arvore.png`.
+
+Testes anteriores alterados:
+- `test_interface.py`: a lista de exemplos passou de 7 para 10.
+- Nenhum outro teste das Etapas 2 e 3 precisou mudar. O resumo léxico (`#resultado`) manteve o mesmo
+  texto, e a análise sintática ganhou um resumo próprio (`#resultado-sintatico`).
+
+Backend: novo teste `test_cada_nao_terminal_da_derivacao_traz_a_sua_regra`, porque cada nó não
+terminal da derivação passou a trazer a sua regra, que a tela mostra ao selecioná-lo.
+`test_programa_vazio` passou a esperar esse campo também.
+
+**Falhas encontradas e correções:**
+1. **Seletores e expressão regular nos testes novos,** corrigidos antes da primeira execução:
+   - seletores que começavam com `>` passaram a usar `:scope >`;
+   - a regex `\bpendente\b` perdeu as barras invertidas ao ser editada pelo terminal e foi corrigida
+     com o editor.
+2. **Heredoc do terminal:** a primeira tentativa de acrescentar o código da árvore ao `app.js` falhou
+   (o bash não aceitou o conteúdo). O código foi para um arquivo próprio, `frontend/site/arvore.js`,
+   o que também separa melhor o módulo da análise sintática.
+3. **Conferência visual:** pelos prints, a árvore, os erros e o celular estão corretos. A tabela e a
+   árvore rolam dentro dos próprios quadros no celular. Nenhum ajuste foi necessário.
+
+**Validação de instalação limpa:**
+1. Apaguei as imagens do projeto (`docker compose --profile testes down --rmi local`).
+2. Clonei a branch `etapa-4` numa pasta nova.
+3. Rodei `docker compose up --build -d`: o backend ficou `healthy`.
+4. Os dois comandos de teste passaram: 416 e 117 aprovados, 0 reprovados.
+
+**Pendências / limitações:**
+- os testes de navegador usam só o Chromium;
+- não há teste automático de acessibilidade com leitor de tela, embora a árvore use `role="tree"`,
+  `aria-expanded` e as formas ■ ◆ ●;
+- a imagem do backend chegou a ficar desatualizada quando o Docker ficou sem acesso ao Docker Hub
+  (registro abaixo); na validação final ela foi reconstruída do zero.
+
+---
+
+## 2026-11-17: Etapa 4A revisada, parser alinhado ao fluxograma e à gramática do README
+
+**O que mudou e por quê.** A primeira versão do parser (registro abaixo) seguia duas decisões que
+divergiam dos documentos do artigo (`docs/fluxograma.md`, `docs/casos-de-teste.md` e a seção de
+gramática do README):
+- o parser não rodava com erro léxico;
+- a resposta guardava a análise sintática num objeto `sintatico`.
+
+O autor decidiu seguir os documentos do artigo. Ficou assim:
+- **O parser roda mesmo com erro léxico.** Os comandos que contêm um erro léxico são pulados e
+  informados em `linhas_ignoradas`, para não gerar erros sintáticos inventados.
+- **A resposta passou a ter `ast`, `derivacao`, `erros_sintaticos` e `linhas_ignoradas` no topo.**
+  `sucesso` passou a valer para léxico **e** sintático (CT-17). `tokens` e `erros` não mudaram.
+- **A gramática é a do README:**
+  - comparação encadeada (`a < b < c` vira um nó `COMPARACAO` com a lista de operadores);
+  - chamadas encadeadas (`f(1)(2)`);
+  - sem vírgula final nos argumentos;
+  - regras renomeadas para `exp_ou`, `exp_e`, `exp_nao` e `atomo`.
+
+**Comando** (montando o código atual no container; veja a falha 3):
+
+```bash
+docker compose run --rm --no-deps -v "<pasta>/backend:/app" backend pytest -q -p no:cacheprovider
+```
+
+**Resultado:** 415 aprovados, 0 reprovados.
+
+Testes acrescentados ou reescritos:
+- **Casos de `docs/casos-de-teste.md`:** CT-01 a CT-06, CT-14 a CT-20, CT-23 a CT-25 e CT-27,
+  marcados nos testes com o número do caso.
+- **Comparação encadeada e chamadas encadeadas:** unitários e diferencial contra o `ast` do Python.
+- **Comandos com erro léxico:**
+  - o comando é pulado e o resto é analisado;
+  - um erro sintático em outra linha continua sendo apontado;
+  - um comando de várias linhas com erro léxico no meio é pulado inteiro;
+  - um erro numa linha sem tokens não atrapalha;
+  - uma string não fechada pula só a sua linha.
+- **API:** formato novo, CT-17 (`sucesso` agora considera o sintático) e CT-27.
+
+**Falhas encontradas e correções:**
+1. **`None = 1`:** o teste esperava "só um nome pode receber valor", mas a mensagem passou a ser "a
+   palavra reservada 'None' não pode ser usada como nome de variável". A mensagem nova é a correta,
+   porque `None` é palavra reservada (CT-18). O caso foi movido para o teste de palavra reservada.
+   Não é um afrouxamento: a expectativa ficou mais específica.
+2. **Limite de aninhamento:** o teste do maior aninhamento aceito usava 38 níveis, medido na gramática
+   antiga. A gramática nova tem um nível a mais (`atomo`), e o limite real passou a ser 35. O valor
+   foi medido de novo antes de ajustar o teste, e o `docs/gramatica.md` foi atualizado.
+3. **Resultado falso por imagem desatualizada:** sem acesso ao Docker Hub, o `docker compose build`
+   falhou ao consultar a imagem base, e o `pytest` rodou na imagem **antiga**, mostrando "391 passed"
+   com o código velho. Percebi porque a contagem não mudou e conferi o arquivo dentro do container. A
+   partir daí, os testes rodaram com a pasta `backend/` montada no container, ou seja, com o código atual.
+4. **Script de edição corrompeu strings:** um script que editava `test_api.py` transformou sequências
+   `\n` em quebras de linha reais, e o arquivo deixou de compilar. As strings foram corrigidas à mão.
+
+**Mutação:**
+
+| Defeito injetado | Detectado? |
+| --- | --- |
+| O parser deixa de pular os comandos com erro léxico | Sim (5 testes) |
+| A comparação aceita só um operador (`while` virou `if`) | Sim (5 testes) |
+
+**Pendências:**
+- reconstruir a imagem do backend quando a conexão voltar;
+- tela, testes de navegador e documentação (Etapa 4B).
+
+---
+
+## 2026-11-17: Etapa 4A, parser (análise sintática) no backend
+
+**Tipos:** unitário (`tests/test_parser.py`), diferencial contra o Python real
+(`tests/test_parser_vs_python.py`), endpoints (`tests/test_api.py`) e regressão (scanner e validação,
+sem alteração).
+
+**Comando:**
+
+```bash
+docker compose run --rm backend pytest -v
+```
+
+**Resultado:** 391 aprovados, 0 reprovados (eram 232 na Etapa 3).
+
+| Arquivo | O que cobre |
+| --- | --- |
+| `test_parser.py` | Cada construção (atribuição, cada valor, cada operador aritmético, relacional, lógico e unário, chamadas com 0 a N argumentos, chamadas aninhadas, vários comandos, expressão solta, expressão em várias linhas dentro de parênteses, combinação de construções); 20 casos de precedência e associatividade (`10 + 5 * 2`, `20 - 5 - 3`, `(10 + 5) * 2`, `2 ** 3 ** 2`, `-2 ** 2`, `a or b and c`, `not a == b`...); parênteses que não viram nó; formato e consistência dos nós; posições de início e fim (inclusive em várias linhas); ordem de construção (filho antes do pai); programa vazio e só com comentários; árvore de derivação (as folhas são exatamente os tokens; ela tem os não terminais e os parênteses e é maior que a AST); cada tipo de erro com `encontrado`, `esperado`, `regra`, linha e coluna; recuperação (um erro por comando, sem cascata); 6 entradas patológicas que viram erro em vez de travar; integração com os exemplos da Etapa 3 |
+| `test_parser_vs_python.py` | Para 27 programas válidos, a AST tem a **mesma estrutura** da gerada pelo módulo `ast` do Python. Para 9 programas inválidos, o Python também os rejeita, ou seja, não há falso erro |
+| `test_api.py` | Novo objeto `sintatico` (AST, derivação, erros, decisão sobre erro léxico, programa vazio, aninhamento extremo sem erro 500, aninhamento máximo aceito serializa sem erro, mensagens sem detalhes internos); os campos da Etapa 3 continuam idênticos |
+
+**Falhas encontradas e correções:**
+1. **Expectativas erradas nos testes novos, corrigidas antes da primeira execução:**
+   - `x = ()` estava na lista "o Python também rejeita", mas é uma tupla vazia válida. Foi retirado
+     dessa lista; o nosso parser recusa porque tuplas estão fora do subconjunto, e isso está
+     documentado.
+   - `a + b >= c * d != e` estava na lista de programas válidos, mas é uma comparação encadeada,
+     fora do subconjunto. Foi trocado por `a + b >= c * d`.
+   - O teste da ordem de construção esperava 7 nós, mas `r = 10 + 5 * 2` gera 8, contando o
+     identificador `r`.
+2. **Regressão detectada:** `test_analisar_codigo_valido_retorna_tokens` e
+   `test_analisar_so_comentario_tem_sucesso_sem_tokens` (Etapa 3) falharam porque comparavam a
+   resposta **inteira** com `==`, e a resposta ganhou o campo `sintatico`. A mudança é intencional:
+   o contrato da Etapa 4 acrescenta um campo e mantém os outros. Os testes passaram a comparar os
+   campos da Etapa 3, que precisam continuar idênticos, e a exigir que o único campo a mais seja
+   `sintatico`. Os valores esperados não mudaram.
+
+**Verificação dos próprios testes (mutação),** em container descartável:
+
+| Defeito injetado no parser | Detectado? |
+| --- | --- |
+| Precedência de `and` e `or` trocada | Sim (diferencial) |
+| Potência associativa à esquerda | Sim (diferencial) |
+| `*` acrescentado ao nível do `+` | Não teve efeito: o `*` continua sendo consumido antes, no `termo`. É uma mutação equivalente, não uma falha dos testes |
+| `*` **movido** do `termo` para o nível do `+` | Sim (6 testes) |
+
+**Pendências:** a tela ainda não mostra a árvore nem os erros sintáticos (Etapa 4B).
+
+---
+
 ## 2026-10-29: Etapa 3B, tela didática da análise léxica
 
 **Tipos:** interface, integração e ponta a ponta (Playwright/Chromium), implantação e regressão
