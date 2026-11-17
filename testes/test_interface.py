@@ -11,6 +11,9 @@ EXEMPLOS = [
     ("4", "idade = 17\nproxima = idade + 1\nmaior = idade >= 18 and not False"),
     ("5", '# média\nnota1 = 7.5\nmedia = (nota1 + 9) / 2  # divisão\nprint("Média:", media)'),
     ("6", "preco = 10.5.2\nemail = ana@escola\ntotal = 12abc"),
+    ("7", "resultado = 10 + 5 * 2\nsubtracao = 20 - 5 - 3\ncom_parenteses = (10 + 5) * 2"),
+    ("8", 'idade = 17\npode_votar = idade >= 16 and not (idade > 70)\nprint("Vota?", pode_votar)'),
+    ("9", "x = 5 +\ny = * 2\nz = (1 + 2))\n17 = idade"),
 ]
 
 
