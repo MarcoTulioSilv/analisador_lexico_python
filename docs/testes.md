@@ -4,6 +4,55 @@ Cada execução relevante fica registrada aqui, da mais recente para a mais anti
 
 ---
 
+## 2026-11-17: Etapa 4A, parser (análise sintática) no backend
+
+**Tipos:** unitário (`tests/test_parser.py`), diferencial contra o Python real
+(`tests/test_parser_vs_python.py`), endpoints (`tests/test_api.py`) e regressão (scanner e validação,
+sem alteração).
+
+**Comando:**
+
+```bash
+docker compose run --rm backend pytest -v
+```
+
+**Resultado:** 391 aprovados, 0 reprovados (eram 232 na Etapa 3).
+
+| Arquivo | O que cobre |
+| --- | --- |
+| `test_parser.py` | Cada construção (atribuição, cada valor, cada operador aritmético, relacional, lógico e unário, chamadas com 0 a N argumentos, chamadas aninhadas, vários comandos, expressão solta, expressão em várias linhas dentro de parênteses, combinação de construções); 20 casos de precedência e associatividade (`10 + 5 * 2`, `20 - 5 - 3`, `(10 + 5) * 2`, `2 ** 3 ** 2`, `-2 ** 2`, `a or b and c`, `not a == b`...); parênteses que não viram nó; formato e consistência dos nós; posições de início e fim (inclusive em várias linhas); ordem de construção (filho antes do pai); programa vazio e só com comentários; árvore de derivação (as folhas são exatamente os tokens; ela tem os não terminais e os parênteses e é maior que a AST); cada tipo de erro com `encontrado`, `esperado`, `regra`, linha e coluna; recuperação (um erro por comando, sem cascata); 6 entradas patológicas que viram erro em vez de travar; integração com os exemplos da Etapa 3 |
+| `test_parser_vs_python.py` | Para 27 programas válidos, a AST tem a **mesma estrutura** da gerada pelo módulo `ast` do Python. Para 9 programas inválidos, o Python também os rejeita, ou seja, não há falso erro |
+| `test_api.py` | Novo objeto `sintatico` (AST, derivação, erros, decisão sobre erro léxico, programa vazio, aninhamento extremo sem erro 500, aninhamento máximo aceito serializa sem erro, mensagens sem detalhes internos); os campos da Etapa 3 continuam idênticos |
+
+**Falhas encontradas e correções:**
+1. **Expectativas erradas nos testes novos, corrigidas antes da primeira execução:**
+   - `x = ()` estava na lista "o Python também rejeita", mas é uma tupla vazia válida. Foi retirado
+     dessa lista; o nosso parser recusa porque tuplas estão fora do subconjunto, e isso está
+     documentado.
+   - `a + b >= c * d != e` estava na lista de programas válidos, mas é uma comparação encadeada,
+     fora do subconjunto. Foi trocado por `a + b >= c * d`.
+   - O teste da ordem de construção esperava 7 nós, mas `r = 10 + 5 * 2` gera 8, contando o
+     identificador `r`.
+2. **Regressão detectada:** `test_analisar_codigo_valido_retorna_tokens` e
+   `test_analisar_so_comentario_tem_sucesso_sem_tokens` (Etapa 3) falharam porque comparavam a
+   resposta **inteira** com `==`, e a resposta ganhou o campo `sintatico`. A mudança é intencional:
+   o contrato da Etapa 4 acrescenta um campo e mantém os outros. Os testes passaram a comparar os
+   campos da Etapa 3, que precisam continuar idênticos, e a exigir que o único campo a mais seja
+   `sintatico`. Os valores esperados não mudaram.
+
+**Verificação dos próprios testes (mutação),** em container descartável:
+
+| Defeito injetado no parser | Detectado? |
+| --- | --- |
+| Precedência de `and` e `or` trocada | Sim (diferencial) |
+| Potência associativa à esquerda | Sim (diferencial) |
+| `*` acrescentado ao nível do `+` | Não teve efeito: o `*` continua sendo consumido antes, no `termo`. É uma mutação equivalente, não uma falha dos testes |
+| `*` **movido** do `termo` para o nível do `+` | Sim (6 testes) |
+
+**Pendências:** a tela ainda não mostra a árvore nem os erros sintáticos (Etapa 4B).
+
+---
+
 ## 2026-10-29: Etapa 3B, tela didática da análise léxica
 
 **Tipos:** interface, integração e ponta a ponta (Playwright/Chromium), implantação e regressão
