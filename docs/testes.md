@@ -4,6 +4,83 @@ Cada execução relevante fica registrada aqui, da mais recente para a mais anti
 
 ---
 
+## 2026-11-17: Etapa 4B, árvore sintática na interface
+
+**Tipos:** interface, integração e ponta a ponta (Playwright/Chromium), implantação e regressão
+(backend inteiro e testes de navegador das Etapas 2 e 3).
+
+**Comandos:**
+
+```bash
+docker compose up --build -d
+docker compose run --rm backend pytest -v         # backend
+docker compose --profile testes run --rm testes   # navegador
+```
+
+**Resultado:**
+
+| Conjunto | Aprovados | Reprovados |
+| --- | --- | --- |
+| Backend (`backend/tests/`) | 416 | 0 |
+| Navegador (`testes/`) | 117 | 0 |
+| **Total** | **533** | **0** |
+
+Testes novos em `testes/test_arvore.py` (40, contando os 6 casos parametrizados de robustez):
+- **Resumo sintático:** o resumo léxico da Etapa 3 continua igual.
+- **AST para código válido:** a precedência aparece na árvore; cada nó mostra forma, tipo e regra;
+  comparação encadeada e chamada; CT-23 (só comentário) e CT-25 (dez níveis de parênteses).
+- **Seleção de nó:** destaca o trecho e mostra os detalhes, inclusive com parênteses e várias linhas.
+- **Expandir e recolher:** tudo de uma vez ou um nó só.
+- **Aba de derivação:** os parênteses aparecem só nela; a contagem compara as duas árvores; dá para
+  selecionar um não terminal.
+- **Consistência (enunciado 7.3.1):** as folhas da derivação são os mesmos tokens da tabela.
+- **Construção passo a passo:** a ordem filhos → pai, até o programa; Reproduzir; abre os nós
+  recolhidos.
+- **Erros sintáticos:** os 4 do exemplo 10, com encontrado, esperado e regra; o sublinhado no código;
+  a marca de fim do código (CT-16).
+- **Léxico × sintático:** cada um com o seu selo; a linha com erro léxico é pulada (CT-27); os erros
+  somem depois de corrigir.
+- **Robustez:** 6 entradas inválidas ou grandes não quebram a tela; HTML no código aparece como texto;
+  uma falha de rede esconde a árvore anterior.
+- **Explicação e celular:** a explicação de AST e derivação aparece; não há rolagem horizontal a 375 px.
+- **Prints:** `arvore-sintatica.png`, `arvore-derivacao.png`, `erros-sintaticos.png` e
+  `celular-arvore.png`.
+
+Testes anteriores alterados:
+- `test_interface.py`: a lista de exemplos passou de 7 para 10.
+- Nenhum outro teste das Etapas 2 e 3 precisou mudar. O resumo léxico (`#resultado`) manteve o mesmo
+  texto, e a análise sintática ganhou um resumo próprio (`#resultado-sintatico`).
+
+Backend: novo teste `test_cada_nao_terminal_da_derivacao_traz_a_sua_regra`, porque cada nó não
+terminal da derivação passou a trazer a sua regra, que a tela mostra ao selecioná-lo.
+`test_programa_vazio` passou a esperar esse campo também.
+
+**Falhas encontradas e correções:**
+1. **Seletores e expressão regular nos testes novos,** corrigidos antes da primeira execução:
+   - seletores que começavam com `>` passaram a usar `:scope >`;
+   - a regex `\bpendente\b` perdeu as barras invertidas ao ser editada pelo terminal e foi corrigida
+     com o editor.
+2. **Heredoc do terminal:** a primeira tentativa de acrescentar o código da árvore ao `app.js` falhou
+   (o bash não aceitou o conteúdo). O código foi para um arquivo próprio, `frontend/site/arvore.js`,
+   o que também separa melhor o módulo da análise sintática.
+3. **Conferência visual:** pelos prints, a árvore, os erros e o celular estão corretos. A tabela e a
+   árvore rolam dentro dos próprios quadros no celular. Nenhum ajuste foi necessário.
+
+**Validação de instalação limpa:**
+1. Apaguei as imagens do projeto (`docker compose --profile testes down --rmi local`).
+2. Clonei a branch `etapa-4` numa pasta nova.
+3. Rodei `docker compose up --build -d`: o backend ficou `healthy`.
+4. Os dois comandos de teste passaram: 416 e 117 aprovados, 0 reprovados.
+
+**Pendências / limitações:**
+- os testes de navegador usam só o Chromium;
+- não há teste automático de acessibilidade com leitor de tela, embora a árvore use `role="tree"`,
+  `aria-expanded` e as formas ■ ◆ ●;
+- a imagem do backend chegou a ficar desatualizada quando o Docker ficou sem acesso ao Docker Hub
+  (registro abaixo); na validação final ela foi reconstruída do zero.
+
+---
+
 ## 2026-11-17: Etapa 4A revisada, parser alinhado ao fluxograma e à gramática do README
 
 **O que mudou e por quê.** A primeira versão do parser (registro abaixo) seguia duas decisões que
