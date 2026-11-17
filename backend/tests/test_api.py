@@ -16,14 +16,17 @@ def test_saude_responde_ok(cliente):
 # ---------- /api/analisar: análise léxica (Etapa 3) ----------
 # Mudança intencional: a resposta 200 da Etapa 2 (recebido, mensagem, linhas,
 # caracteres) foi substituída pelo resultado do scanner (sucesso, tokens, erros).
-# Etapa 4: a resposta ganhou o campo "sintatico"; os campos da Etapa 3 continuam
-# idênticos, então estes testes comparam só eles (via campos_da_etapa_3).
+# Etapa 4: a resposta ganhou os campos da análise sintática (ast, derivacao,
+# erros_sintaticos, linhas_ignoradas); "tokens" e "erros" continuam idênticos e
+# "sucesso" passou a valer para léxico E sintático. Estes testes comparam só os
+# campos da Etapa 3 (via campos_da_etapa_3), com entradas sintaticamente válidas.
 
 CAMPOS_ETAPA_3 = ("sucesso", "tokens", "erros")
+CAMPOS_ETAPA_4 = ("ast", "derivacao", "erros_sintaticos", "linhas_ignoradas")
 
 
 def campos_da_etapa_3(dados):
-    assert set(dados) == set(CAMPOS_ETAPA_3) | {"sintatico"}
+    assert set(dados) == set(CAMPOS_ETAPA_3) | set(CAMPOS_ETAPA_4)
     return {campo: dados[campo] for campo in CAMPOS_ETAPA_3}
 
 
@@ -185,102 +188,105 @@ def test_erro_inesperado_nao_expoe_detalhes(cliente, monkeypatch):
 
 # ---------- /api/analisar: análise sintática (Etapa 4) ----------
 
-def test_campos_da_etapa_3_continuam_iguais(cliente):
-    # Regressão: a Etapa 4 só acrescenta "sintatico"; o resto da resposta não muda.
+def test_tokens_e_erros_lexicos_continuam_iguais_aos_da_etapa_3(cliente):
+    # Regressão: "tokens" e "erros" são exatamente o que o scanner da Etapa 3 produz.
     from scanner import analisar_lexico
 
     codigo = 'nome = "Ana"\nidade = 17 @'
     dados = cliente.post("/api/analisar", json={"codigo": codigo}).get_json()
     tokens, erros = analisar_lexico(codigo)
-    assert set(dados) == {"sucesso", "tokens", "erros", "sintatico"}
-    assert dados["sucesso"] is False
     assert dados["tokens"] == tokens
     assert dados["erros"] == erros
 
 
-def test_codigo_valido_retorna_ast(cliente):
+def test_codigo_valido_retorna_ast(cliente):  # CT-01 / CT-08
     resp = cliente.post("/api/analisar", json={"codigo": "resultado = 10 + 5 * 2"})
     assert resp.status_code == 200
     dados = resp.get_json()
+    assert set(dados) == set(CAMPOS_ETAPA_3) | set(CAMPOS_ETAPA_4)
     assert dados["sucesso"] is True
-    sintatico = dados["sintatico"]
-    assert set(sintatico) == {"executado", "sucesso", "ast", "derivacao", "erros", "motivo"}
-    assert sintatico["executado"] is True
-    assert sintatico["sucesso"] is True
-    assert sintatico["erros"] == []
-    assert sintatico["motivo"] is None
-    ast = sintatico["ast"]
+    assert dados["erros"] == []
+    assert dados["erros_sintaticos"] == []
+    assert dados["linhas_ignoradas"] == []
+    ast = dados["ast"]
     assert ast["tipo"] == "PROGRAMA"
     atribuicao = ast["filhos"][0]
     assert atribuicao["tipo"] == "ATRIBUICAO"
     adicao = atribuicao["filhos"][1]
     assert adicao["tipo"] == "ADICAO"
     assert adicao["filhos"][1]["tipo"] == "MULTIPLICACAO"  # precedência: * fica abaixo do +
-    assert sintatico["derivacao"]["simbolo"] == "programa"
+    assert dados["derivacao"]["simbolo"] == "programa"
 
 
 def test_erro_sintatico_retorna_ast_nula_e_erros(cliente):
     resp = cliente.post("/api/analisar", json={"codigo": "x = 5 +\ny = 1"})
     assert resp.status_code == 200
     dados = resp.get_json()
-    assert dados["sucesso"] is True  # o léxico passou
-    sintatico = dados["sintatico"]
-    assert sintatico["executado"] is True
-    assert sintatico["sucesso"] is False
-    assert sintatico["ast"] is None
-    assert sintatico["derivacao"] is None
-    assert len(sintatico["erros"]) == 1
-    erro = sintatico["erros"][0]
+    assert dados["sucesso"] is False
+    assert dados["erros"] == []          # o léxico passou
+    assert dados["ast"] is None
+    assert dados["derivacao"] is None
+    assert len(dados["erros_sintaticos"]) == 1
+    erro = dados["erros_sintaticos"][0]
     assert set(erro) == {"tipo", "linha", "coluna", "encontrado", "esperado", "regra", "mensagem"}
     assert (erro["tipo"], erro["linha"], erro["coluna"]) == ("ERRO_SINTATICO", 1, 8)
     assert erro["encontrado"] == "o fim da linha"
 
 
+def test_sucesso_passa_a_considerar_o_sintatico(cliente):  # CT-17
+    # Na Etapa 3 este código dava sucesso (os tokens são válidos); agora não dá mais.
+    dados = cliente.post("/api/analisar", json={"codigo": "= = 17"}).get_json()
+    assert dados["erros"] == []
+    assert len(dados["erros_sintaticos"]) == 1
+    assert dados["sucesso"] is False
+
+
 def test_varios_erros_sintaticos(cliente):
     codigo = "x = 5 +\ny = * 2\nz = (1 + 2))\n17 = idade"
     dados = cliente.post("/api/analisar", json={"codigo": codigo}).get_json()
-    assert [e["linha"] for e in dados["sintatico"]["erros"]] == [1, 2, 3, 4]
+    assert [e["linha"] for e in dados["erros_sintaticos"]] == [1, 2, 3, 4]
 
 
-def test_com_erro_lexico_o_parser_nao_executa(cliente):
-    dados = cliente.post("/api/analisar", json={"codigo": "x = 1 @ 2"}).get_json()
+def test_com_erro_lexico_o_parser_analisa_as_outras_linhas(cliente):  # CT-27
+    dados = cliente.post("/api/analisar", json={"codigo": "x = 1 @ 2\ny = 2 + 3"}).get_json()
     assert dados["sucesso"] is False
-    assert len(dados["erros"]) == 1  # o erro léxico continua sendo informado
-    assert dados["sintatico"] == {
-        "executado": False,
-        "sucesso": False,
-        "ast": None,
-        "derivacao": None,
-        "erros": [],
-        "motivo": "A análise sintática não foi executada porque o código tem erros léxicos. "
-                  "Corrija-os primeiro: com tokens inválidos, o parser apontaria erros sem sentido.",
-    }
+    assert [e["lexema"] for e in dados["erros"]] == ["@"]   # o erro léxico continua informado
+    assert dados["erros_sintaticos"] == []                  # sem erro inventado em "x = 1 2"
+    assert dados["linhas_ignoradas"] == [1]
+    assert [c["atributos"]["nome"] for c in dados["ast"]["filhos"]] == ["y"]
 
 
-def test_so_comentario_gera_programa_vazio(cliente):
+def test_erro_lexico_e_sintatico_juntos(cliente):
+    dados = cliente.post("/api/analisar", json={"codigo": "a = 1 $\nb = (2"}).get_json()
+    assert dados["sucesso"] is False
+    assert [e["linha"] for e in dados["erros"]] == [1]
+    assert [e["linha"] for e in dados["erros_sintaticos"]] == [2]
+    assert dados["ast"] is None
+
+
+def test_so_comentario_gera_programa_vazio(cliente):  # CT-23
     dados = cliente.post("/api/analisar", json={"codigo": "# nada"}).get_json()
-    assert dados["sintatico"]["sucesso"] is True
-    assert dados["sintatico"]["ast"]["filhos"] == []
+    assert dados["sucesso"] is True
+    assert dados["ast"]["filhos"] == []
 
 
 def test_aninhamento_extremo_nao_gera_erro_500(cliente):
     codigo = "x = " + "(" * 4000 + "1" + ")" * 4000
     resp = cliente.post("/api/analisar", json={"codigo": codigo})
     assert resp.status_code == 200
-    erros = resp.get_json()["sintatico"]["erros"]
-    assert "aninhada ou longa demais" in erros[0]["mensagem"]
+    assert "aninhada ou longa demais" in resp.get_json()["erros_sintaticos"][0]["mensagem"]
 
 
 def test_maior_aninhamento_aceito_serializa_sem_erro(cliente):
     # Logo abaixo do limite, a árvore (profunda) ainda precisa virar JSON sem estourar.
-    codigo = "x = " + "(" * 35 + "1" + ")" * 35
+    codigo = "x = " + "(" * 35 + "1" + ")" * 35  # 35 é o máximo (36 já dá erro de limite)
     resp = cliente.post("/api/analisar", json={"codigo": codigo})
     assert resp.status_code == 200
-    assert resp.get_json()["sintatico"]["sucesso"] is True
+    assert resp.get_json()["sucesso"] is True
 
 
 def test_erro_sintatico_nao_expoe_detalhes_internos(cliente):
     dados = cliente.post("/api/analisar", json={"codigo": "x = (1 +\nif )"}).get_json()
-    for erro in dados["sintatico"]["erros"]:
+    for erro in dados["erros_sintaticos"]:
         assert "Traceback" not in erro["mensagem"]
         assert ".py" not in erro["mensagem"]

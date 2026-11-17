@@ -20,27 +20,23 @@ def analisar():
     if erro:
         return jsonify(recebido=False, erro=erro), 400
 
-    # Etapa 3: análise léxica. Erros léxicos não são erro da requisição (continua 200);
-    # quem diz se o código passou é o campo "sucesso".
+    # Etapa 3: análise léxica. Erros (léxicos ou sintáticos) não são erro da requisição:
+    # a resposta continua 200 e quem diz se o código passou é o campo "sucesso".
     tokens, erros = analisar_lexico(codigo)
-    # Etapa 4: os campos acima continuam iguais; a análise sintática vem em "sintatico".
-    return jsonify(sucesso=not erros, tokens=tokens, erros=erros, sintatico=analise_sintatica(tokens, erros))
 
+    # Etapa 4: o parser roda mesmo com erro léxico (decisão registrada em docs/fluxograma.md),
+    # pulando os comandos que contêm erro léxico. Assim o aluno vê os dois tipos de erro de uma vez.
+    ast, derivacao, erros_sintaticos, linhas_ignoradas = analisar_sintaxe(tokens, erros)
 
-MOTIVO_SEM_PARSER = (
-    "A análise sintática não foi executada porque o código tem erros léxicos. "
-    "Corrija-os primeiro: com tokens inválidos, o parser apontaria erros sem sentido."
-)
-
-
-def analise_sintatica(tokens, erros_lexicos):
-    # Decisão de projeto: com erro léxico, o parser não roda.
-    if erros_lexicos:
-        return {"executado": False, "sucesso": False, "ast": None, "derivacao": None,
-                "erros": [], "motivo": MOTIVO_SEM_PARSER}
-    ast, derivacao, erros = analisar_sintaxe(tokens)
-    return {"executado": True, "sucesso": not erros, "ast": ast, "derivacao": derivacao,
-            "erros": erros, "motivo": None}
+    return jsonify(
+        sucesso=not erros and not erros_sintaticos,  # a partir da Etapa 4: léxico E sintático
+        tokens=tokens,
+        erros=erros,                                  # erros léxicos (mesmo formato da Etapa 3)
+        ast=ast,
+        derivacao=derivacao,
+        erros_sintaticos=erros_sintaticos,
+        linhas_ignoradas=linhas_ignoradas,
+    )
 
 
 @app.errorhandler(Exception)

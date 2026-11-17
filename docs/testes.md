@@ -4,6 +4,73 @@ Cada execução relevante fica registrada aqui, da mais recente para a mais anti
 
 ---
 
+## 2026-11-17: Etapa 4A revisada, parser alinhado ao fluxograma e à gramática do README
+
+**O que mudou e por quê.** A primeira versão do parser (registro abaixo) seguia duas decisões que
+divergiam dos documentos do artigo (`docs/fluxograma.md`, `docs/casos-de-teste.md` e a seção de
+gramática do README):
+- o parser não rodava com erro léxico;
+- a resposta guardava a análise sintática num objeto `sintatico`.
+
+O autor decidiu seguir os documentos do artigo. Ficou assim:
+- **O parser roda mesmo com erro léxico.** Os comandos que contêm um erro léxico são pulados e
+  informados em `linhas_ignoradas`, para não gerar erros sintáticos inventados.
+- **A resposta passou a ter `ast`, `derivacao`, `erros_sintaticos` e `linhas_ignoradas` no topo.**
+  `sucesso` passou a valer para léxico **e** sintático (CT-17). `tokens` e `erros` não mudaram.
+- **A gramática é a do README:**
+  - comparação encadeada (`a < b < c` vira um nó `COMPARACAO` com a lista de operadores);
+  - chamadas encadeadas (`f(1)(2)`);
+  - sem vírgula final nos argumentos;
+  - regras renomeadas para `exp_ou`, `exp_e`, `exp_nao` e `atomo`.
+
+**Comando** (montando o código atual no container; veja a falha 3):
+
+```bash
+docker compose run --rm --no-deps -v "<pasta>/backend:/app" backend pytest -q -p no:cacheprovider
+```
+
+**Resultado:** 415 aprovados, 0 reprovados.
+
+Testes acrescentados ou reescritos:
+- **Casos de `docs/casos-de-teste.md`:** CT-01 a CT-06, CT-14 a CT-20, CT-23 a CT-25 e CT-27,
+  marcados nos testes com o número do caso.
+- **Comparação encadeada e chamadas encadeadas:** unitários e diferencial contra o `ast` do Python.
+- **Comandos com erro léxico:**
+  - o comando é pulado e o resto é analisado;
+  - um erro sintático em outra linha continua sendo apontado;
+  - um comando de várias linhas com erro léxico no meio é pulado inteiro;
+  - um erro numa linha sem tokens não atrapalha;
+  - uma string não fechada pula só a sua linha.
+- **API:** formato novo, CT-17 (`sucesso` agora considera o sintático) e CT-27.
+
+**Falhas encontradas e correções:**
+1. **`None = 1`:** o teste esperava "só um nome pode receber valor", mas a mensagem passou a ser "a
+   palavra reservada 'None' não pode ser usada como nome de variável". A mensagem nova é a correta,
+   porque `None` é palavra reservada (CT-18). O caso foi movido para o teste de palavra reservada.
+   Não é um afrouxamento: a expectativa ficou mais específica.
+2. **Limite de aninhamento:** o teste do maior aninhamento aceito usava 38 níveis, medido na gramática
+   antiga. A gramática nova tem um nível a mais (`atomo`), e o limite real passou a ser 35. O valor
+   foi medido de novo antes de ajustar o teste, e o `docs/gramatica.md` foi atualizado.
+3. **Resultado falso por imagem desatualizada:** sem acesso ao Docker Hub, o `docker compose build`
+   falhou ao consultar a imagem base, e o `pytest` rodou na imagem **antiga**, mostrando "391 passed"
+   com o código velho. Percebi porque a contagem não mudou e conferi o arquivo dentro do container. A
+   partir daí, os testes rodaram com a pasta `backend/` montada no container, ou seja, com o código atual.
+4. **Script de edição corrompeu strings:** um script que editava `test_api.py` transformou sequências
+   `\n` em quebras de linha reais, e o arquivo deixou de compilar. As strings foram corrigidas à mão.
+
+**Mutação:**
+
+| Defeito injetado | Detectado? |
+| --- | --- |
+| O parser deixa de pular os comandos com erro léxico | Sim (5 testes) |
+| A comparação aceita só um operador (`while` virou `if`) | Sim (5 testes) |
+
+**Pendências:**
+- reconstruir a imagem do backend quando a conexão voltar;
+- tela, testes de navegador e documentação (Etapa 4B).
+
+---
+
 ## 2026-11-17: Etapa 4A, parser (análise sintática) no backend
 
 **Tipos:** unitário (`tests/test_parser.py`), diferencial contra o Python real
